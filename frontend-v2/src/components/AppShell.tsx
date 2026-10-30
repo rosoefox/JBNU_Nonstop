@@ -70,6 +70,16 @@ function LoginButton() {
   )
 }
 
+// 좁은 화면 위쪽 막대: 로고 오른쪽에 설명
+function BrandInline() {
+  return (
+    <div className="flex items-baseline gap-2.5">
+      <p className="font-display text-2xl font-extrabold tracking-tight text-sprout-100">Nonstop</p>
+      <p className="text-xs text-sprout-300/80">논 물관리 · 탄소 MRV</p>
+    </div>
+  )
+}
+
 function Brand() {
   return (
     <div className="text-center">
@@ -96,13 +106,13 @@ export default function AppShell({ children }: { children?: ReactNode }) {
       </aside>
 
       <header className="flex items-center justify-between bg-sprout-800 px-4 py-3 md:hidden">
-        <Brand />
+        <BrandInline />
         <button type="button" onClick={() => setOpen(!open)} className="rounded-lg p-2 text-sprout-100 hover:bg-sprout-700" aria-label="메뉴">
           {open ? <X className="size-5" /> : <Menu className="size-5" />}
         </button>
       </header>
       {open && (
-        <div className="border-t border-sprout-700 bg-sprout-800 px-4 pb-4 md:hidden">
+        <div className="border-t border-sprout-700 bg-sprout-800 px-4 pt-3 pb-4 md:hidden">
           <NavItems onNavigate={() => setOpen(false)} />
           <div className="mt-3"><LoginButton /></div>
         </div>
