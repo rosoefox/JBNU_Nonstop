@@ -1,0 +1,70 @@
+@import "tailwindcss";
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
+@import "leaflet/dist/leaflet.css";
+
+/* Regrow 팔레트 기반 (soil 바탕 · forest 글자 · sprout 포인트 · rain 물) */
+@theme {
+  --color-soil-50: #fcfcf8;
+  --color-soil-100: #f8f8f3;
+  --color-soil-200: #f1f1ec;
+  --color-soil-300: #d5d2cb;
+  --color-soil-400: #aba5a0;
+  --color-soil-500: #8c857f;
+  --color-soil-600: #66605c;
+  --color-soil-700: #433f3b;
+  --color-soil-800: #363331;
+  --color-soil-900: #191411;
+
+  --color-sprout-100: #f7faf0;
+  --color-sprout-200: #e0ecc3;
+  --color-sprout-300: #c0d989;
+  --color-sprout-400: #9dc04d;
+  --color-sprout-500: #82a632;
+  --color-sprout-600: #49650c;
+  --color-sprout-700: #334904;
+  --color-sprout-800: #243304;
+  --color-sprout-900: #162501;
+
+  --color-forest-100: #e7f7ef;
+  --color-forest-200: #beecc6;
+  --color-forest-500: #30883e;
+  --color-forest-600: #096117;
+  --color-forest-800: #063a21;
+
+  --color-rain-100: #eaf5f5;
+  --color-rain-200: #d2e8e6;
+  --color-rain-300: #bad6d4;
+  --color-rain-400: #93bfbc;
+  --color-rain-500: #54948f;
+  --color-rain-600: #11615b;
+  --color-rain-700: #023c38;
+
+  --color-mustard-100: #f3efe3;
+  --color-mustard-200: #f3e7c8;
+  --color-mustard-500: #b49034;
+  --color-mustard-600: #543e04;
+
+  --color-clay-100: #ffeaea;
+  --color-clay-200: #f9c7c7;
+  --color-clay-500: #ca3232;
+  --color-clay-600: #af0707;
+  --color-clay-700: #810404;
+
+  --color-lavender-100: #f3f2f9;
+  --color-lavender-200: #deddef;
+  --color-lavender-500: #655fa4;
+  --color-lavender-600: #342e7b;
+
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  --font-display: var(--font-sans); /* 제목·숫자도 본문과 같은 Pretendard */
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+
+html, body, #root { height: 100%; }
+body {
+  @apply bg-soil-100 text-forest-800 font-sans antialiased;
+  font-feature-settings: "tnum";
+}
+
+/* 지도 배경 위 기본 글꼴 */
+.leaflet-container { font-family: var(--font-sans); background: var(--color-soil-200); }

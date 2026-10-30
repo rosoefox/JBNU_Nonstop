@@ -2,7 +2,7 @@
 
 DB에 표를 새로 만들지 않고 아래처럼 대응시킴:
   Thing / Location / HistoricalLocation = nodes (같은 id)
-  Datastream   = 노드 × 측정 항목 (id = 노드id*10 + 항목번호, 1: 수위, 2: 배터리 전압)
+  Datastream   = 센서 × 측정 항목 (id = 센서id*10 + 항목번호, 1: 수위, 2: 배터리 전압)
   Sensor / ObservedProperty = 측정 항목 2종 (고정값)
   Observation  = sensor_logs 한 줄 × 항목 (id = 로그id*10 + 항목번호)
   FeatureOfInterest = fields (필지 경계, 없으면 논 좌표)
@@ -40,11 +40,11 @@ KINDS = {
     2: {
         "name": "배터리 전압",
         "definition": "https://en.wikipedia.org/wiki/Voltage",
-        "description": "센서 노드 배터리 전압",
+        "description": "센서 배터리 전압",
         "unit": {"name": "volt", "symbol": "V", "definition": "http://qudt.org/vocab/unit/V"},
         "column": "battery_voltage",
         "sensor_name": "배터리 전압 측정",
-        "sensor_description": "STM32 노드(NUCLEO-WL55JC1) 내장 ADC 전압 측정",
+        "sensor_description": "STM32 보드(NUCLEO-WL55JC1) 내장 ADC 전압 측정",
     },
 }
 OBSERVATION_TYPE = "http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement"

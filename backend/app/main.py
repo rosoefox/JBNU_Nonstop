@@ -23,7 +23,7 @@ app = FastAPI(title="Nonstop Backend")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.environ.get(
-        "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+        "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
     ).split(","),
     allow_methods=["*"],
     allow_headers=["*"],
@@ -85,7 +85,7 @@ def status_page():
             ("DB", s["postgres"]),
             ("PostGIS", s["postgis"] or "설치 안 됨"),
             ("논", f"{s['fields']}개"),
-            ("노드", f"{s['nodes']}대"),
+            ("센서", f"{s['nodes']}대"),
             ("수위 측정값", f"{s['sensor_logs']:,}건"),
             ("알람", f"{s['alerts']}건"),
             ("마지막 측정", latest_text),
@@ -155,6 +155,31 @@ def create_field(body: FieldCreate):
             ),
             body.model_dump(),
         ).one()
+    return to_dict(row)
+
+
+class FieldUpdate(BaseModel):
+    field_name: str | None = Field(default=None, min_length=1)
+    location_desc: str | None = None
+    area_ha: float | None = Field(default=None, gt=0)
+
+
+@app.patch("/fields/{field_id}")
+def update_field(field_id: int, body: FieldUpdate):
+    """논 이름·지역·사업 면적 수정 (보낸 항목만 바꿈, 지역·면적은 null로 비울 수 있음)."""
+    changes = body.model_dump(exclude_unset=True)
+    if changes.get("field_name") is None:
+        changes.pop("field_name", None)  # 이름은 비울 수 없음
+    if not changes:
+        raise HTTPException(status_code=400, detail="바꿀 항목이 없습니다")
+    sets = ", ".join(f"{k} = :{k}" for k in changes)  # 키는 FieldUpdate 필드명으로 고정
+    with get_engine().begin() as conn:
+        row = conn.execute(
+            text(f"update fields set {sets} where id = :field_id returning {FIELD_COLUMNS}"),
+            {**changes, "field_id": field_id},
+        ).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="존재하지 않는 논입니다")
     return to_dict(row)
 
 
@@ -258,7 +283,7 @@ class NodeUpdate(BaseModel):
 
 @app.patch("/nodes/{node_id}")
 def update_node(node_id: int, body: NodeUpdate):
-    """노드 이름·설명·펌프 연결 여부 수정 (보낸 항목만 바꿈)."""
+    """센서 이름·설명·펌프 연결 여부 수정 (보낸 항목만 바꿈)."""
     changes = body.model_dump(exclude_unset=True)
     if changes.get("node_name") is None:
         changes.pop("node_name", None)  # 이름은 비울 수 없음
@@ -273,7 +298,7 @@ def update_node(node_id: int, body: NodeUpdate):
             {**changes, "node_id": node_id},
         ).first()
     if row is None:
-        raise HTTPException(status_code=404, detail="존재하지 않는 노드입니다")
+        raise HTTPException(status_code=404, detail="존재하지 않는 센서입니다")
     return to_dict(row)
 
 
@@ -290,7 +315,7 @@ PERIODS = {
 
 @app.get("/nodes/latest")
 def latest_logs():
-    """노드별 가장 최근 측정값."""
+    """센서별 가장 최근 측정값."""
     with get_engine().connect() as conn:
         rows = conn.execute(
             text(
@@ -653,7 +678,7 @@ def refresh_derived_alerts(conn) -> None:
             "lookback": LEVEL_ALERT_LOOKBACK_DAYS,
             "msg_high": f"수위 +{TARGET_LEVEL_CM:g}cm 초과가 {SUSTAINED_HOURS}시간 넘게 지속 (물꼬 확인 필요)",
             "msg_low": f"수위 {DRY_LEVEL_CM:g}cm 이하가 {SUSTAINED_HOURS}시간 넘게 지속 (재관개 필요)",
-            "msg_fail": f"펌프 연결 노드인데 수위 {DRY_LEVEL_CM:g}cm 이하가 {SUSTAINED_HOURS}시간 넘게 지속 "
+            "msg_fail": f"펌프 연결 센서인데 수위 {DRY_LEVEL_CM:g}cm 이하가 {SUSTAINED_HOURS}시간 넘게 지속 "
                         "(자동 재관개 실패, 펌프 점검 필요)",
         },
     )
