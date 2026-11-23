@@ -9,7 +9,7 @@ const NAV: { to: string; label: string; icon: typeof Map; soon?: boolean; main?:
   { to: '/', label: '관제', icon: Map },
   { to: '/alerts', label: '알림', icon: Bell },
   { to: '/mrv', label: 'MRV 보고서', icon: FileText },
-  { to: '/validation', label: '위성·드론 검증', icon: Satellite, soon: true },
+  { to: '/validation', label: '위성·드론 검증', icon: Satellite },
   { to: '/admin', label: '관리', icon: Settings },
 ]
 

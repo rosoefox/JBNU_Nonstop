@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
-from . import sensorthings
+from . import sensorthings, satellite
 from .db import get_engine, to_dict
 
 load_dotenv()
@@ -31,6 +31,7 @@ app.add_middleware(
 
 # OGC SensorThings API v1.1 (/v1.1/...)
 app.include_router(sensorthings.router)
+app.include_router(satellite.router)
 
 
 @app.get("/health")
