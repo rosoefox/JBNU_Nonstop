@@ -1,15 +1,10 @@
-// 위성·드론 교차검증 (LX 제안서 (4)) — 계획만 보여주는 준비중 화면
-import { Plane, Radar, ScanLine, Sigma } from 'lucide-react'
+// 위성·드론 교차검증: Sentinel-1 SAR 분석과 후속 검증 항목
+import { Plane, ScanLine, Sigma } from 'lucide-react'
 import { ComingSoon } from '../components/common'
 import { Card, PageTitle } from '../components/ui'
+import SatelliteAnalysis from '../components/SatelliteAnalysis'
 
 const STEPS = [
-  {
-    icon: Radar,
-    title: 'Sentinel-1 SAR',
-    body: '구름·야간에 관계없이 찍히는 레이더 영상으로 논 표면의 물 고임(담수 여부)을 판별해요.',
-    tag: '후방산란 계수 (VV·VH)',
-  },
   {
     icon: ScanLine,
     title: 'Sentinel-2 광학',
@@ -40,7 +35,12 @@ export default function ValidationPage() {
         위성·드론은 <b className="font-semibold text-forest-800">넓은 지역 감시와 현장 검증용 보조 지표</b>로 써요.
       </Card>
 
-      <ComingSoon label="준비중 · 원격탐사 분석 단계에서 진행">
+      <section aria-label="Sentinel-1 SAR 분석" className="flex flex-col gap-3">
+        <h2 className="font-display text-xl font-bold text-forest-800">Sentinel-1 SAR</h2>
+        <SatelliteAnalysis />
+      </section>
+
+      <ComingSoon label="준비중 · 추가 검증 단계에서 진행">
         <div className="grid gap-4 md:grid-cols-2">
           {STEPS.map(({ icon: Icon, title, body, tag }) => (
             <Card key={title} className="flex gap-4 p-5">

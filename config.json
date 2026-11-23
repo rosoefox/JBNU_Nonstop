@@ -1,0 +1,11 @@
+{
+  "project": "nonstop-514208",
+  "service_account": "nonstop@nonstop-514208.iam.gserviceaccount.com",
+  "service_account_key_file": "nonstop-514208-8d0d81f3766e.json",
+  "start": "2024-01-01",
+  "end": "2024-12-31",
+  "flooded_vv_max": -14,
+  "drained_vv_min": -12,
+  "speckle_radius": 20,
+  "scale": 10
+}

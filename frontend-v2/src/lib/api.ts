@@ -63,6 +63,33 @@ export interface NodeUpdate {
 
 export const getFields = () => request<Field[]>('/fields')
 
+export interface SatelliteObservation {
+  date: string
+  timestamp: string
+  scene_id: string
+  VV_median: number | null
+  VH_median: number | null
+  valid_pixel_count: number | null
+  status: 'flooded' | 'uncertain' | 'drained'
+  status_ko: string
+}
+
+export interface SatelliteSelection {
+  geometry: GeoJSON.Polygon
+  start: string
+  end: string
+}
+
+export const analyzeSatellite = (body: SatelliteSelection) =>
+  request<{ observations: SatelliteObservation[]; chart_url: string | null; algorithm_version: string }>('/satellite/analyze', {
+    method: 'POST', body: JSON.stringify(body),
+  })
+
+export const getSatelliteScene = (body: SatelliteSelection & { scene_id: string }) =>
+  request<{ tile_url: string; scene_id: string }>('/satellite/scene', {
+    method: 'POST', body: JSON.stringify(body),
+  })
+
 export const createField = (body: FieldCreate) =>
   request<Field>('/fields', { method: 'POST', body: JSON.stringify(body) })
 
