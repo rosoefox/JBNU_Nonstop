@@ -17,7 +17,11 @@ def get_engine():
         if url.startswith("postgresql://"):
             url = url.replace("postgresql://", "postgresql+psycopg://", 1)
         # DB가 꺼져 있을 때 오래 붙잡지 않게 연결 대기 5초
-        _engine = create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 5})
+        # prepare_threshold=None: Supabase 연결 공유기(트랜잭션 모드)에서 '미리 준비된 쿼리'가
+        # 가끔 실패하는 문제를 막으려고 이 기능을 끔
+        _engine = create_engine(
+            url, pool_pre_ping=True, connect_args={"connect_timeout": 5, "prepare_threshold": None}
+        )
     return _engine
 
 
