@@ -1,13 +1,16 @@
 // 서버 데이터 불러오기 (TanStack Query). 관제 화면이라 주기적으로 새로 받아옴
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
-import { getAlerts, getFields, getLatestLogs, getNodeAwd, getNodeLogs, getNodeStats, getNodes } from './api'
+import { getAlerts, getExperimentMode, getFields, getLatestLogs, getNodeAwd, getNodeLogs, getNodeStats, getNodes } from './api'
 import { summarizeFields } from './fieldSummary'
 import type { Period, SensorLog } from './types'
 
 const REFRESH_MS = 60_000 // 1분마다 최신값
 
 export const useFields = () => useQuery({ queryKey: ['fields'], queryFn: getFields })
+
+export const useExperimentMode = () =>
+  useQuery({ queryKey: ['experiment-mode'], queryFn: getExperimentMode, refetchInterval: REFRESH_MS })
 
 export const useNodes = () => useQuery({ queryKey: ['nodes'], queryFn: getNodes })
 

@@ -63,11 +63,52 @@ export interface NodeUpdate {
 
 export const getFields = () => request<Field[]>('/fields')
 
+export interface SatelliteObservation {
+  date: string
+  timestamp: string
+  scene_id: string
+  VV_median: number | null
+  VH_median: number | null
+  valid_pixel_count: number | null
+  status: 'flooded' | 'uncertain' | 'drained'
+  status_ko: string
+}
+
+export interface SatelliteSelection {
+  geometry: GeoJSON.Polygon
+  start: string
+  end: string
+}
+
+export const analyzeSatellite = (body: SatelliteSelection) =>
+  request<{ observations: SatelliteObservation[]; chart_url: string | null; algorithm_version: string }>('/satellite/analyze', {
+    method: 'POST', body: JSON.stringify(body),
+  })
+
+export const getSatelliteScene = (body: SatelliteSelection & { scene_id: string }) =>
+  request<{ tile_url: string; scene_id: string }>('/satellite/scene', {
+    method: 'POST', body: JSON.stringify(body),
+  })
+
 export const createField = (body: FieldCreate) =>
   request<Field>('/fields', { method: 'POST', body: JSON.stringify(body) })
 
 export const updateField = (fieldId: number, body: FieldUpdate) =>
   request<Field>(`/fields/${fieldId}`, { method: 'PATCH', body: JSON.stringify(body) })
+
+// 실험 모드: 알림 판정 시간을 줄여 짧은 실험에서 확인 (서버 settings.py)
+export interface AlertRules {
+  experiment_mode: boolean
+  sustained_minutes: number
+  comm_lost_minutes: number
+  expected_uplink_minutes: number
+  sustained_label: string
+}
+
+export const getExperimentMode = () => request<AlertRules>('/settings/experiment-mode')
+
+export const setExperimentMode = (enabled: boolean) =>
+  request<AlertRules>('/settings/experiment-mode', { method: 'PUT', body: JSON.stringify({ enabled }) })
 
 // 브라우저가 V-WORLD에서 받은 필지 경계를 논에 저장 (vworld.ts fetchParcel 참고)
 export const saveParcel = (fieldId: number, parcel: Parcel) =>

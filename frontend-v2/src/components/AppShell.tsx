@@ -1,15 +1,17 @@
 import clsx from 'clsx'
-import { Bell, FileText, LandPlot, LogIn, Map, Menu, Satellite, Settings, X } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Bell, FileText, FlaskConical, LandPlot, LogIn, Map, Menu, Satellite, Settings, X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { useAlerts, useServerHealth } from '../lib/queries'
+import { setExperimentMode } from '../lib/api'
+import { useAlerts, useExperimentMode, useServerHealth } from '../lib/queries'
 
 const NAV: { to: string; label: string; icon: typeof Map; soon?: boolean; main?: boolean }[] = [
   { to: '/fields', label: '대시보드', icon: LandPlot, main: true },
   { to: '/', label: '관제', icon: Map },
   { to: '/alerts', label: '알림', icon: Bell },
   { to: '/mrv', label: 'MRV 보고서', icon: FileText },
-  { to: '/validation', label: '위성·드론 검증', icon: Satellite, soon: true },
+  { to: '/validation', label: '위성·드론 검증', icon: Satellite },
   { to: '/admin', label: '관리', icon: Settings },
 ]
 
@@ -51,6 +53,56 @@ function ServerStatus() {
       <span className={clsx('size-2 rounded-full', isSuccess ? 'bg-sprout-400' : isError ? 'bg-clay-500' : 'bg-soil-400')} />
       {label}
     </div>
+  )
+}
+
+// 실험 모드 전환: 켜면 서버가 알림을 10분 기준으로 판정 (평소 6시간·통신 끊김 30분)
+function ExperimentToggle() {
+  const queryClient = useQueryClient()
+  const { data, isError } = useExperimentMode()
+  const on = data?.experiment_mode ?? false
+  const toggle = useMutation({
+    mutationFn: (enabled: boolean) => setExperimentMode(enabled),
+    onSuccess: (rules) => {
+      queryClient.setQueryData(['experiment-mode'], rules)
+      queryClient.invalidateQueries({ queryKey: ['alerts'] })
+    },
+    onError: (err) => window.alert(err instanceof Error ? err.message : '모드를 바꾸지 못했어요'),
+  })
+
+  function onClick() {
+    const next = !on
+    const message = next
+      ? '실험 모드를 켤까요?\n수위 알림을 10분, 통신 끊김을 10분 기준으로 판정해요.'
+      : '평소 모드로 돌릴까요?\n수위 알림 6시간, 통신 끊김 30분 기준으로 돌아가요.'
+    if (window.confirm(message)) toggle.mutate(next)
+  }
+
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={onClick}
+      disabled={!data || toggle.isPending}
+      title={isError ? '서버에서 모드를 확인하지 못했어요' : undefined}
+      className={clsx(
+        'flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm font-medium transition-colors disabled:cursor-wait disabled:opacity-60',
+        on ? 'border-mustard-500 bg-mustard-500/15 text-mustard-200 hover:bg-mustard-500/25'
+          : 'border-sprout-600 text-sprout-200/80 hover:bg-sprout-700',
+      )}
+    >
+      <FlaskConical className="size-4 shrink-0" aria-hidden />
+      <span className="flex-1 leading-tight">
+        <span className="block">{on ? '실험 모드' : '평소 모드'}</span>
+        <span className={clsx('block text-[10px]', on ? 'text-mustard-200/80' : 'text-sprout-300/70')}>
+          {data ? `알림 판정 ${data.sustained_label} · 끊김 ${data.comm_lost_minutes}분` : '확인 중'}
+        </span>
+      </span>
+      <span className={clsx('relative h-5 w-9 shrink-0 rounded-full transition-colors', on ? 'bg-mustard-500' : 'bg-sprout-700')}>
+        <span className={clsx('absolute top-0.5 size-4 rounded-full bg-white shadow transition-all', on ? 'left-4.5' : 'left-0.5')} />
+      </span>
+    </button>
   )
 }
 
@@ -100,7 +152,10 @@ export default function AppShell({ children }: { children?: ReactNode }) {
           <NavItems />
         </div>
         <div className="flex flex-col gap-4">
-          <LoginButton />
+          <div className="flex flex-col gap-2">
+            <ExperimentToggle />
+            <LoginButton />
+          </div>
           <ServerStatus />
         </div>
       </aside>
@@ -114,7 +169,7 @@ export default function AppShell({ children }: { children?: ReactNode }) {
       {open && (
         <div className="border-t border-sprout-700 bg-sprout-800 px-4 pt-3 pb-4 md:hidden">
           <NavItems onNavigate={() => setOpen(false)} />
-          <div className="mt-3"><LoginButton /></div>
+          <div className="mt-3 flex flex-col gap-2"><ExperimentToggle /><LoginButton /></div>
         </div>
       )}
 

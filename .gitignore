@@ -2,3 +2,20 @@
 
 # 방법론 PDF 등 참고 자료는 저장소에 올리지 않음
 *.pdf
+
+# 발표 자료
+*.pptx
+
+# 환경 변수 (DB 주소, API 키)
+.env
+.env.*
+!.env.example
+
+# Google 서비스 계정 키 (절대 올리지 않음)
+nonstop-514208-*.json
+*service-account*.json
+*service_account*.json
+*credentials*.json
+
+# 작업용 복사본 폴더
+JBNU_Nonstop-sentinel/

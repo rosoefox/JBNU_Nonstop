@@ -13,7 +13,8 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
-from . import sensorthings
+from . import lorawan, satellite, sensorthings, settings
+from .settings import alert_rules
 from .db import get_engine, to_dict
 
 load_dotenv()
@@ -31,6 +32,9 @@ app.add_middleware(
 
 # OGC SensorThings API v1.1 (/v1.1/...)
 app.include_router(sensorthings.router)
+app.include_router(satellite.router)
+app.include_router(lorawan.router)
+app.include_router(settings.router)
 
 
 @app.get("/health")
@@ -392,8 +396,7 @@ def water_regime(drain_count: int) -> str:
 
 # 준수율: -15cm 도달 후 이 시간 안에 재관개(-10cm 위로 회복)하면 AWD 운영 원칙을 지킨 것으로 봄
 COMPLIANCE_HOURS = 24
-# 가동률 계산용 업링크 주기 (센서 팀 확인 전 임시값, 프론트 STALE_MINUTES와 별개)
-EXPECTED_UPLINK_MINUTES = 10
+# 가동률 계산용 업링크 주기: settings.alert_rules()의 expected_uplink_minutes (평소 10분, 실험 모드 1분)
 # 측정 사이 간격이 이보다 길면 끊긴 구간으로 보고 상태별 일수에 넣지 않음
 MAX_GAP_MINUTES = 60
 
@@ -415,7 +418,8 @@ def awd_indicators(rows, events, period_start: datetime, period_end: datetime,
 
     # 가동률: 첫 측정(설치 시점으로 간주)부터 기간 끝까지 받아야 할 측정 수 대비 실제 받은 수
     start = max(period_start, rows[0][1]) if rows else period_start
-    expected = node_count * (period_end - start).total_seconds() / 60 / EXPECTED_UPLINK_MINUTES
+    uplink_minutes = alert_rules()["expected_uplink_minutes"]
+    expected = node_count * (period_end - start).total_seconds() / 60 / uplink_minutes
 
     return {
         "flooded_days": round(minutes["flooded"] / 1440, 1),
@@ -427,7 +431,7 @@ def awd_indicators(rows, events, period_start: datetime, period_end: datetime,
         "judged_events": len(judged),
         "compliance_hours": COMPLIANCE_HOURS,
         "uptime_rate": min(100.0, round(100 * sample_count / expected, 1)) if expected > 0 else None,
-        "expected_uplink_minutes": EXPECTED_UPLINK_MINUTES,
+        "expected_uplink_minutes": uplink_minutes,
     }
 
 
@@ -593,10 +597,8 @@ ALERT_SELECT = (
     "from alerts a join nodes n on n.id = a.node_id"
 )
 
-# 업링크 주기를 아직 몰라서 30분으로 잡음 (프론트 STALE_MINUTES와 맞출 것)
-COMM_LOST_MINUTES = 30
-# 수위가 기준을 벗어난 상태(-15cm 이하 / +5cm 초과)가 이 시간 이상 이어지면 알람
-SUSTAINED_HOURS = 6
+# 통신 끊김 판정 시간, 수위 알람 지속 시간은 settings.alert_rules()에서 읽음
+#  (평소: 통신 끊김 30분 / 수위 6시간, 실험 모드: 둘 다 10분. 웹 왼쪽 메뉴에서 전환)
 TARGET_LEVEL_CM = 5.0
 # 수위 알람 판정에 볼 최근 기간 (측정값이 많아져도 조회가 느려지지 않게)
 LEVEL_ALERT_LOOKBACK_DAYS = 30
@@ -610,6 +612,7 @@ def refresh_derived_alerts(conn) -> None:
     별도 스케줄러 없이 알람을 열 때마다 확인하고, 같은 알람은 중복으로 만들지 않음.
     """
     # 요청 두 개가 동시에 들어와도 한 번에 하나만 검사하게 잠금 (트랜잭션 끝나면 자동 해제)
+    rules = alert_rules()
     conn.execute(text("select pg_advisory_xact_lock(:key)"), {"key": DERIVED_ALERT_LOCK_KEY})
     # 통신 끊김: 마지막 측정이 기준보다 오래됐고, 이번 끊김에 대한 알람이 아직 없으면 생성
     # (사람이 먼저 해결 처리해도 같은 끊김으로 다시 만들지 않도록 마지막 측정 이후 알람 유무로 판단)
@@ -625,7 +628,7 @@ def refresh_derived_alerts(conn) -> None:
             "  and not exists (select 1 from alerts a where a.node_id = l.node_id "
             "                  and a.alert_type = 'COMM_LOST' and a.created_at >= l.measured_at)"
         ),
-        {"minutes": COMM_LOST_MINUTES},
+        {"minutes": rules["comm_lost_minutes"]},
     )
     # 데이터가 다시 들어오면 통신 끊김 알람 자동 해결
     conn.execute(
@@ -636,12 +639,12 @@ def refresh_derived_alerts(conn) -> None:
             "  and exists (select 1 from sensor_logs l where l.node_id = a.node_id "
             "              and l.measured_at > now() - make_interval(mins => :minutes))"
         ),
-        {"minutes": COMM_LOST_MINUTES},
+        {"minutes": rules["comm_lost_minutes"]},
     )
-    # 수위 알람: 같은 상태가 이어진 구간(-15cm 이하 / +5cm 초과)이 6시간 이상이면 구간마다 1건
+    # 수위 알람: 같은 상태가 이어진 구간(-15cm 이하 / +5cm 초과)이 정해진 시간(rules) 이상이면 구간마다 1건
     #  - -15cm 이하: 펌프 없음 → 재관개 필요 / 펌프 있음 → 재관개 실패 (자동 재관개가 안 된 것)
     #  - +5cm 초과: 수위 높음
-    # 알람 시각 = 구간 시작 + 6시간 (같은 구간으로 다시 만들지 않는 기준으로도 씀)
+    # 알람 시각 = 구간 시작 + 정해진 시간 (같은 구간으로 다시 만들지 않는 기준으로도 씀)
     conn.execute(
         text(
             "with l as ("
@@ -658,11 +661,11 @@ def refresh_derived_alerts(conn) -> None:
             "         min(lv) as lowest, max(lv) as highest, bool_or(is_test) as is_test "
             "  from g where state is not null group by node_id, state, grp), "
             "a as ("
-            "  select ep.*, ep.started + make_interval(hours => :hours) as alert_at, "
+            "  select ep.*, ep.started + make_interval(mins => :mins) as alert_at, "
             "         case when ep.state = 'HIGH' then 'HIGH_WATER' "
             "              when n.has_pump then 'IRRIGATION_FAIL' else 'LOW_WATER' end as alert_type "
             "  from ep join nodes n on n.id = ep.node_id "
-            "  where ep.ended - ep.started >= make_interval(hours => :hours)) "
+            "  where ep.ended - ep.started >= make_interval(mins => :mins)) "
             "insert into alerts (node_id, alert_type, water_level, message, created_at, is_test) "
             "select a.node_id, a.alert_type, "
             "       case when a.state = 'HIGH' then a.highest else a.lowest end, "
@@ -674,11 +677,11 @@ def refresh_derived_alerts(conn) -> None:
             "                  and x.alert_type = a.alert_type and x.created_at = a.alert_at)"
         ),
         {
-            "dry": DRY_LEVEL_CM, "target": TARGET_LEVEL_CM, "hours": SUSTAINED_HOURS,
+            "dry": DRY_LEVEL_CM, "target": TARGET_LEVEL_CM, "mins": rules["sustained_minutes"],
             "lookback": LEVEL_ALERT_LOOKBACK_DAYS,
-            "msg_high": f"수위 +{TARGET_LEVEL_CM:g}cm 초과가 {SUSTAINED_HOURS}시간 넘게 지속 (물꼬 확인 필요)",
-            "msg_low": f"수위 {DRY_LEVEL_CM:g}cm 이하가 {SUSTAINED_HOURS}시간 넘게 지속 (재관개 필요)",
-            "msg_fail": f"펌프 연결 센서인데 수위 {DRY_LEVEL_CM:g}cm 이하가 {SUSTAINED_HOURS}시간 넘게 지속 "
+            "msg_high": f"수위 +{TARGET_LEVEL_CM:g}cm 초과가 {rules['sustained_label']} 넘게 지속 (물꼬 확인 필요)",
+            "msg_low": f"수위 {DRY_LEVEL_CM:g}cm 이하가 {rules['sustained_label']} 넘게 지속 (재관개 필요)",
+            "msg_fail": f"펌프 연결 센서인데 수위 {DRY_LEVEL_CM:g}cm 이하가 {rules['sustained_label']} 넘게 지속 "
                         "(자동 재관개 실패, 펌프 점검 필요)",
         },
     )
