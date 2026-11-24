@@ -6,9 +6,8 @@ import { useMutation } from '@tanstack/react-query'
 import { ComingSoon } from '../../components/common'
 import { Card, PageTitle } from '../../components/ui'
 import { ApiError, getFieldMrv } from '../../lib/api'
-import { DATA_SCOPE_LABEL, type DataScope } from '../../lib/dataScope'
 import { button, input, label } from '../../lib/classes'
-import { useFields } from '../../lib/queries'
+import { useDataScope, useFields } from '../../lib/queries'
 import ReportDocument from './ReportDocument'
 import {
   EMPTY_INPUT, METHODS, ORGANIC_TYPES, PRESEASON_TYPES, kstStamp, type GsReport, type OperatorInput,
@@ -29,8 +28,8 @@ export default function MrvPage() {
   const [form, setForm] = useState<OperatorInput>(EMPTY_INPUT)
   const [error, setError] = useState('')
   const [report, setReport] = useState<GsReport | null>(null)
-  // 보고서에 쓸 데이터: 기본은 실제 데이터만 (실험 모드 데이터는 감축 실적에서 제외)
-  const [scope, setScope] = useState<DataScope>('real')
+  // 보고서에 쓸 데이터: 실험 모드면 실험 데이터, 평소에는 실제 데이터
+  const scope = useDataScope()
   const set = <K extends keyof OperatorInput>(key: K, value: OperatorInput[K]) => setForm((p) => ({ ...p, [key]: value }))
 
   const generate = useMutation({
@@ -45,9 +44,9 @@ export default function MrvPage() {
       if (!(form.sf_o > 0) || !(form.sf_p > 0)) throw new Error('SF_o, SF_p는 0보다 커야 해요.')
       const mrv = await getFieldMrv(field.id, form.season_start, form.season_end, form.sf_p, form.sf_o, scope)
       if (mrv.sample_count === 0) {
-        throw new Error(scope === 'real'
-          ? '선택한 재배기간에 실제 수위 기록이 없어요. 실험 데이터로 보려면 아래 "사용 데이터"를 바꿔 주세요.'
-          : '선택한 재배기간에 수위 측정 기록이 없어요.')
+        throw new Error(scope === 'experiment'
+          ? '선택한 재배기간에 실험 데이터가 없어요.'
+          : '선택한 재배기간에 실제 수위 기록이 없어요. (실험 데이터는 실험 모드에서만 보여요)')
       }
       return {
         ...form,
@@ -90,17 +89,6 @@ export default function MrvPage() {
           <button type="button" onClick={() => generate.mutate()} disabled={generate.isPending} className={button('primary', 'h-[38px] px-5')}>
             {generate.isPending ? '계산 중...' : '보고서 생성'}
           </button>
-        </div>
-        <div className="-mt-1 flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-xs font-semibold text-soil-600">사용 데이터</span>
-          {(['real', 'experiment', 'all'] as DataScope[]).map((s) => (
-            <button key={s} type="button" onClick={() => setScope(s)}
-              className={clsx('rounded-full border px-3 py-1 text-xs font-semibold',
-                scope === s ? 'border-sprout-800 bg-sprout-800 text-sprout-100' : 'border-soil-300 text-soil-700 hover:bg-soil-50')}>
-              {s === 'real' ? '실제만 (기본)' : s === 'experiment' ? '실험만' : DATA_SCOPE_LABEL[s]}
-            </button>
-          ))}
-          <span className="text-xs text-soil-500">감축 실적 보고서는 실험 모드 데이터를 빼고 만드는 것이 원칙이에요.</span>
         </div>
         {error && <p className="-mt-3 text-sm font-medium text-clay-600">{error}</p>}
 

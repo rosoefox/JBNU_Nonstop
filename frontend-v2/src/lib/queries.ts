@@ -2,7 +2,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { getAlerts, getExperimentMode, getFields, getLatestLogs, getNodeAwd, getNodeLogs, getNodeStats, getNodes } from './api'
-import { useDataScope } from './dataScope'
+import type { DataScope } from './dataScope'
 import { summarizeFields } from './fieldSummary'
 import type { Period, SensorLog } from './types'
 
@@ -12,6 +12,12 @@ export const useFields = () => useQuery({ queryKey: ['fields'], queryFn: getFiel
 
 export const useExperimentMode = () =>
   useQuery({ queryKey: ['experiment-mode'], queryFn: getExperimentMode, refetchInterval: REFRESH_MS })
+
+// 화면 전체가 볼 데이터: 실험 모드면 실험 데이터만, 평소에는 실제 데이터만
+export function useDataScope(): DataScope {
+  const { data } = useExperimentMode()
+  return data?.experiment_mode ? 'experiment' : 'real'
+}
 
 export const useNodes = () => useQuery({ queryKey: ['nodes'], queryFn: getNodes })
 

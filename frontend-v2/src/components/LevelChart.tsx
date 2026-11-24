@@ -19,12 +19,7 @@ const formatTick = (period: Period) => (t: number) => {
     : `${d.getMonth() + 1}/${d.getDate()}`
 }
 
-// 실험 모드에서 들어온 데이터 구간 [시작, 끝] (ms)
-export type TimeRange = [number, number]
-
-export default function LevelChart({ series, period, height = 300, experimentRanges = [] }: {
-  series: LevelSeries[]; period: Period; height?: number; experimentRanges?: TimeRange[]
-}) {
+export default function LevelChart({ series, period, height = 300 }: { series: LevelSeries[]; period: Period; height?: number }) {
   const hasData = series.some((s) => s.points.length > 0)
   if (!hasData) {
     return <div className="flex items-center justify-center text-sm text-soil-500" style={{ height }}>이 기간에 측정 기록이 없어요</div>
@@ -39,10 +34,6 @@ export default function LevelChart({ series, period, height = 300, experimentRan
         <LineChart margin={{ top: 8, right: 16, bottom: 0, left: -12 }}>
           <CartesianGrid stroke="#f1f1ec" vertical={false} />
           <ReferenceArea y1={DRY_LEVEL_CM} y2={TARGET_LEVEL_CM} fill="#e0ecc3" fillOpacity={0.45} ifOverflow="hidden" />
-          {experimentRanges.map(([x1, x2], i) => (
-            <ReferenceArea key={`exp-${i}`} x1={x1} x2={x2} fill="#b49034" fillOpacity={0.12} ifOverflow="hidden"
-              label={i === 0 ? { value: '실험', position: 'insideTopLeft', fill: '#8a6d20', fontSize: 11, fontWeight: 600 } : undefined} />
-          ))}
           <ReferenceLine y={DRY_LEVEL_CM} stroke="#ca3232" strokeDasharray="5 4"
             label={{ value: `재관개 ${DRY_LEVEL_CM}cm`, position: 'insideBottomRight', fill: '#ca3232', fontSize: 11 }} />
           <ReferenceLine y={TARGET_LEVEL_CM} stroke="#11615b" strokeDasharray="5 4"

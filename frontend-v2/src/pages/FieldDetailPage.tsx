@@ -5,8 +5,7 @@ import { CircleMarker, GeoJSON, Tooltip } from 'react-leaflet'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { LatLngBoundsExpression } from 'leaflet'
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query'
-import LevelChart, { type LevelSeries, type TimeRange } from '../components/LevelChart'
-import { useDataScope } from '../lib/dataScope'
+import LevelChart, { type LevelSeries } from '../components/LevelChart'
 import VworldMap from '../components/VworldMap'
 import { Empty, InfoList, LoadState, PeriodTabs } from '../components/common'
 import { Card, CardHeader, StatusBadge } from '../components/ui'
@@ -15,7 +14,7 @@ import { SERIES_COLORS, button, input } from '../lib/classes'
 import {
   ALERT_META, DRY_LEVEL_CM, TONE_HEX, WATER_REGIMES, currentStatus, formatLevel, nodeLabel, pumpStatus, timeAgo,
 } from '../lib/domain'
-import { useAlerts, useFieldSummaries, useNodeAwd, useNodeStats } from '../lib/queries'
+import { useAlerts, useDataScope, useFieldSummaries, useNodeAwd, useNodeStats } from '../lib/queries'
 import type { AwdIndicators, Field, Node, Period, SensorLog } from '../lib/types'
 
 export function FieldIndexRedirect() {
@@ -52,14 +51,6 @@ export default function FieldDetailPage() {
   const logQueries = useQueries({
     queries: nodes.map((n) => ({ queryKey: ['logs', n.id, period, scope], queryFn: () => getNodeLogs(n.id, period, scope), refetchInterval: 60_000 })),
   })
-  // 실험 데이터가 이어진 구간 (측정 간격이 30분 넘게 벌어지면 끊어서 봄)
-  const experimentRanges: TimeRange[] = []
-  const expTimes = logQueries.flatMap((q) => (q.data ?? []).filter((l) => l.is_experiment).map((l) => new Date(l.measured_at).getTime())).sort((a, b) => a - b)
-  for (const t of expTimes) {
-    const last = experimentRanges[experimentRanges.length - 1]
-    if (last && t - last[1] <= 30 * 60_000) last[1] = t
-    else experimentRanges.push([t, t])
-  }
   const series: LevelSeries[] = nodes.map((n, i) => ({
     id: n.id,
     name: nodeLabel(n),
@@ -145,7 +136,7 @@ export default function FieldDetailPage() {
       <Card>
         <CardHeader title="수위 변화" aside={<PeriodTabs value={period} onChange={(p) => setParam('period', p)} />} />
         <div className="px-2 pb-4">
-          {nodes.length === 0 ? <Empty>이 필지에 등록된 센서가 없어요.</Empty> : <LevelChart series={series} period={period} experimentRanges={experimentRanges} />}
+          {nodes.length === 0 ? <Empty>이 필지에 등록된 센서가 없어요.</Empty> : <LevelChart series={series} period={period} />}
         </div>
       </Card>
 
