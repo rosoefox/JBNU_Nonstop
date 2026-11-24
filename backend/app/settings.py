@@ -41,7 +41,10 @@ def experiment_mode() -> bool:
             value = conn.execute(text("select value from app_settings where key = 'experiment_mode'")).scalar()
         mode = bool(value) if value is not None else _env_default()
     except DBAPIError:
-        mode = _env_default()  # 표가 아직 없을 때
+        # DB를 잠깐 못 읽으면 마지막으로 읽은 모드를 그대로 씀 (운영으로 잘못 저장되지 않게)
+        if _cache["value"] is not None:
+            return _cache["value"]
+        mode = _env_default()  # 처음부터 못 읽을 때 (표가 아직 없을 때 등)
     _cache.update(at=now, value=mode)
     return mode
 
