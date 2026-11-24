@@ -93,10 +93,10 @@ function ExperimentToggle() {
       )}
     >
       <FlaskConical className="size-4 shrink-0" aria-hidden />
-      <span className="flex-1 leading-tight">
+      <span className="min-w-0 flex-1 leading-snug">
         <span className="block">{on ? '실험 모드' : '평소 모드'}</span>
-        <span className={clsx('block text-[10px]', on ? 'text-mustard-200/80' : 'text-sprout-300/70')}>
-          {data ? `알림 판정 ${data.sustained_label} · 끊김 ${data.comm_lost_minutes}분` : '확인 중'}
+        <span className={clsx('mt-0.5 block truncate whitespace-nowrap text-[11px]', on ? 'text-mustard-200/80' : 'text-sprout-300/70')}>
+          {data ? `알림 ${data.sustained_label} · 끊김 ${data.comm_lost_minutes}분` : '확인 중'}
         </span>
       </span>
       <span className={clsx('relative h-5 w-9 shrink-0 rounded-full transition-colors', on ? 'bg-mustard-500' : 'bg-sprout-700')}>
