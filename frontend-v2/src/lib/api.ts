@@ -62,7 +62,7 @@ export interface NodeUpdate {
   has_pump?: boolean
 }
 
-export const getFields = () => request<Field[]>('/fields')
+export const getFields = (scope: DataScope = 'all') => request<Field[]>(`/fields?data=${scope}`)
 
 export interface SatelliteObservation {
   date: string
@@ -119,7 +119,7 @@ export const saveParcel = (fieldId: number, parcel: Parcel) =>
 export const loadParcel = async (field: Pick<Field, 'id' | 'latitude' | 'longitude'>) =>
   saveParcel(field.id, await fetchParcel(field.latitude, field.longitude))
 
-export const getNodes = () => request<Node[]>('/nodes')
+export const getNodes = (scope: DataScope = 'all') => request<Node[]>(`/nodes?data=${scope}`)
 
 export const createNode = (body: NodeCreate) =>
   request<Node>('/nodes', { method: 'POST', body: JSON.stringify(body) })

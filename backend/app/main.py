@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from . import lorawan, satellite, sensorthings, settings
-from .settings import alert_rules
+from .settings import alert_rules, experiment_mode
 from .db import get_engine, to_dict
 
 load_dotenv()
@@ -125,11 +125,20 @@ def status_page():
 </div></body></html>"""
 
 
+# 실험 모드에서 들어온 데이터(is_experiment)를 골라 보기: 전체 / 실제만 / 실험만
+DataScope = Literal["all", "real", "experiment"]
+
+
+def scope_sql(scope: str, col: str = "is_experiment") -> str:
+    """where 절 뒤에 붙일 조건 (앞에 and 포함)."""
+    return {"all": "", "real": f" and not {col}", "experiment": f" and {col}"}[scope]
+
+
 # boundary는 GeoJSON으로, 필지 면적(ha)은 경계로 계산해서 같이 돌려줌
 FIELD_COLUMNS = (
     "id, field_name, location_desc, latitude, longitude, area_ha, created_at, pnu, jibun_addr, "
     "ST_AsGeoJSON(boundary)::json as boundary, "
-    "round((ST_Area(boundary::geography) / 10000)::numeric, 4) as parcel_area_ha"
+    "round((ST_Area(boundary::geography) / 10000)::numeric, 4) as parcel_area_ha, is_experiment"
 )
 
 
@@ -142,9 +151,10 @@ class FieldCreate(BaseModel):
 
 
 @app.get("/fields")
-def list_fields():
+def list_fields(data: DataScope = "all"):
+    """논 목록. 실험 모드에서 만든 논은 실험용(is_experiment)으로 따로 구분."""
     with get_engine().connect() as conn:
-        rows = conn.execute(text(f"select {FIELD_COLUMNS} from fields order by id")).all()
+        rows = conn.execute(text(f"select {FIELD_COLUMNS} from fields where true{scope_sql(data)} order by id")).all()
     return [to_dict(r) for r in rows]
 
 
@@ -153,11 +163,11 @@ def create_field(body: FieldCreate):
     with get_engine().begin() as conn:
         row = conn.execute(
             text(
-                "insert into fields (field_name, location_desc, latitude, longitude, area_ha) "
-                "values (:field_name, :location_desc, :latitude, :longitude, :area_ha) "
+                "insert into fields (field_name, location_desc, latitude, longitude, area_ha, is_experiment) "
+                "values (:field_name, :location_desc, :latitude, :longitude, :area_ha, :exp) "
                 f"returning {FIELD_COLUMNS}"
             ),
-            body.model_dump(),
+            {**body.model_dump(), "exp": experiment_mode()},
         ).one()
     return to_dict(row)
 
@@ -223,7 +233,7 @@ def save_parcel(field_id: int, body: ParcelBody):
 
 
 NODE_COLUMNS = (
-    "id, field_id, node_name, dev_eui, latitude, longitude, location_desc, is_active, has_pump, created_at"
+    "id, field_id, node_name, dev_eui, latitude, longitude, location_desc, is_active, has_pump, created_at, is_experiment"
 )
 
 
@@ -246,11 +256,11 @@ class NodeCreate(BaseModel):
 
 
 @app.get("/nodes")
-def list_nodes(field_id: int | None = None):
-    query = f"select {NODE_COLUMNS} from nodes"
+def list_nodes(field_id: int | None = None, data: DataScope = "all"):
+    query = f"select {NODE_COLUMNS} from nodes where true{scope_sql(data)}"
     params = {}
     if field_id is not None:
-        query += " where field_id = :field_id"
+        query += " and field_id = :field_id"
         params["field_id"] = field_id
     with get_engine().connect() as conn:
         rows = conn.execute(text(query + " order by id"), params).all()
@@ -263,16 +273,16 @@ def create_node(body: NodeCreate):
         with get_engine().begin() as conn:
             row = conn.execute(
                 text(
-                    "insert into nodes (field_id, node_name, dev_eui, latitude, longitude, location_desc, has_pump) "
-                    "values (:field_id, :node_name, :dev_eui, :latitude, :longitude, :location_desc, :has_pump) "
+                    "insert into nodes (field_id, node_name, dev_eui, latitude, longitude, location_desc, has_pump, is_experiment) "
+                    "values (:field_id, :node_name, :dev_eui, :latitude, :longitude, :location_desc, :has_pump, :exp) "
                     f"returning {NODE_COLUMNS}"
                 ),
-                body.model_dump(),
+                {**body.model_dump(), "exp": experiment_mode()},
             ).one()
     except IntegrityError as e:
         sqlstate = getattr(e.orig, "sqlstate", None)
         if sqlstate == "23505":
-            raise HTTPException(status_code=409, detail="이미 등록된 DevEUI입니다")
+            raise HTTPException(status_code=409, detail="이 모드에 이미 등록된 DevEUI입니다")
         if sqlstate == "23503":
             raise HTTPException(status_code=400, detail="존재하지 않는 논입니다")
         raise
@@ -307,14 +317,6 @@ def update_node(node_id: int, body: NodeUpdate):
 
 
 LOG_COLUMNS = "node_id, inner_water_level, pump_on, battery_voltage, measured_at, is_experiment"
-
-# 실험 모드에서 들어온 데이터(is_experiment)를 골라 보기: 전체 / 실제만 / 실험만
-DataScope = Literal["all", "real", "experiment"]
-
-
-def scope_sql(scope: str, col: str = "is_experiment") -> str:
-    """where 절 뒤에 붙일 조건 (앞에 and 포함)."""
-    return {"all": "", "real": f" and not {col}", "experiment": f" and {col}"}[scope]
 
 # 기간이 길면 점이 너무 많아져서 일정 간격으로 평균을 내서 보냄 (None = 원본 그대로)
 PERIODS = {

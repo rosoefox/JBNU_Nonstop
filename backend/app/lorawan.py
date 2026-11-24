@@ -112,7 +112,9 @@ async def receive_uplink(request: Request, token: str | None = None):
     measured_at = _measured_at(body)
     with get_engine().begin() as conn:
         node_id = conn.execute(
-            text("select id from nodes where upper(dev_eui) = :dev_eui"), {"dev_eui": dev_eui}
+            text("select id from nodes where upper(dev_eui) = :dev_eui "
+                 "order by (is_experiment = :exp) desc, id desc limit 1"),
+            {"dev_eui": dev_eui, "exp": experiment_mode()},
         ).scalar()
         if node_id is None:
             # 게이트웨이가 같은 데이터를 계속 다시 보내지 않게 200으로 응답하고 이유만 알림

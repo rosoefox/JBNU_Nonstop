@@ -8,18 +8,24 @@ import type { Period, SensorLog } from './types'
 
 const REFRESH_MS = 60_000 // 1분마다 최신값
 
-export const useFields = () => useQuery({ queryKey: ['fields'], queryFn: getFields })
+export const useFields = () => {
+  const scope = useDataScope()
+  return useQuery({ queryKey: ['fields', scope], queryFn: () => getFields(scope) })
+}
 
 export const useExperimentMode = () =>
   useQuery({ queryKey: ['experiment-mode'], queryFn: getExperimentMode, refetchInterval: REFRESH_MS })
 
-// 화면 전체가 볼 데이터: 실험 모드면 실험 데이터만, 평소에는 실제 데이터만
+// 화면 전체가 볼 데이터: 실험 모드면 실험 데이터만, 운영 모드에서는 실제 데이터만 (논·센서·측정·알림 모두)
 export function useDataScope(): DataScope {
   const { data } = useExperimentMode()
   return data?.experiment_mode ? 'experiment' : 'real'
 }
 
-export const useNodes = () => useQuery({ queryKey: ['nodes'], queryFn: getNodes })
+export const useNodes = () => {
+  const scope = useDataScope()
+  return useQuery({ queryKey: ['nodes', scope], queryFn: () => getNodes(scope) })
+}
 
 export const useLatestLogs = () => {
   const scope = useDataScope()

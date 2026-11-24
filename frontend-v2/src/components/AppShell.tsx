@@ -56,7 +56,7 @@ function ServerStatus() {
   )
 }
 
-// 실험 모드 전환: 켜면 서버가 알림을 10분 기준으로 판정 (평소 6시간·통신 끊김 30분)
+// 실험 모드 전환: 켜면 서버가 알림을 10분 기준으로 판정 (운영 6시간·통신 끊김 30분)
 function ExperimentToggle() {
   const queryClient = useQueryClient()
   const { data, isError } = useExperimentMode()
@@ -73,8 +73,8 @@ function ExperimentToggle() {
   function onClick() {
     const next = !on
     const message = next
-      ? '실험 모드를 켤까요?\n수위 알림을 10분, 통신 끊김을 10분 기준으로 판정해요.'
-      : '평소 모드로 돌릴까요?\n수위 알림 6시간, 통신 끊김 30분 기준으로 돌아가요.'
+      ? '실험 모드로 바꿀까요?\n실험용 논·센서 데이터만 보이고, 수위 알림 10분 · 통신 끊김 10분 기준으로 판정해요.'
+      : '운영 모드로 바꿀까요?\n실제 논·센서 데이터만 보이고, 수위 알림 6시간 · 통신 끊김 30분 기준으로 판정해요.'
     if (window.confirm(message)) toggle.mutate(next)
   }
 
@@ -94,7 +94,7 @@ function ExperimentToggle() {
     >
       <FlaskConical className="size-4 shrink-0" aria-hidden />
       <span className="min-w-0 flex-1 leading-snug">
-        <span className="block">{on ? '실험 모드' : '평소 모드'}</span>
+        <span className="block">{on ? '실험 모드' : '운영 모드'}</span>
         <span className={clsx('mt-0.5 block truncate whitespace-nowrap text-[11px]', on ? 'text-mustard-200/80' : 'text-sprout-300/70')}>
           {data ? `알림 ${data.sustained_label} · 끊김 ${data.comm_lost_minutes}분` : '확인 중'}
         </span>
@@ -103,18 +103,6 @@ function ExperimentToggle() {
         <span className={clsx('absolute top-0.5 size-4 rounded-full bg-white shadow transition-all', on ? 'left-4.5' : 'left-0.5')} />
       </span>
     </button>
-  )
-}
-
-// 실험 모드일 때 화면 위에 안내 (지금 보이는 데이터가 실험 데이터라는 표시)
-function ExperimentBanner() {
-  const { data } = useExperimentMode()
-  if (!data?.experiment_mode) return null
-  return (
-    <div className="sticky top-0 z-[1000] flex items-center justify-center gap-2 bg-mustard-500 px-4 py-1.5 text-xs font-bold text-sprout-900">
-      <FlaskConical className="size-3.5" aria-hidden />
-      실험 모드 · 실험 데이터만 보여요 (평소 모드로 바꾸면 실제 데이터)
-    </div>
   )
 }
 
@@ -186,7 +174,6 @@ export default function AppShell({ children }: { children?: ReactNode }) {
       )}
 
       <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-        <ExperimentBanner />
         {children ?? <Outlet />}
       </main>
     </div>

@@ -28,7 +28,7 @@ export default function MrvPage() {
   const [form, setForm] = useState<OperatorInput>(EMPTY_INPUT)
   const [error, setError] = useState('')
   const [report, setReport] = useState<GsReport | null>(null)
-  // 보고서에 쓸 데이터: 실험 모드면 실험 데이터, 평소에는 실제 데이터
+  // 보고서에 쓸 데이터: 실험 모드면 실험 데이터, 운영 모드에서는 실제 데이터
   const scope = useDataScope()
   const set = <K extends keyof OperatorInput>(key: K, value: OperatorInput[K]) => setForm((p) => ({ ...p, [key]: value }))
 
