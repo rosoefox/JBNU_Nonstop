@@ -1,9 +1,13 @@
 """LoRaWAN 업링크 수신: 게이트웨이(RAK WisGate 내장 서버) 또는 ChirpStack의 HTTP 연동이 보내는 JSON을 sensor_logs에 저장.
 
-센서 페이로드 (STM32 펌웨어 lora_app.c SendTxData):
-  바이트 0~1 = 수위(mm), 부호 있는 16비트 빅엔디언. 측정 실패 시 -999
-  바이트 2   = 펌프 상태 (1=ON, 0=OFF). 자동 재관개 펌웨어부터 있음, 없으면 저장 안 함
-  수위 = 400mm(센서~지표면 기준) - 초음파 거리. 저장할 때는 cm로 바꿈
+센서 페이로드는 두 가지를 받음 (길이로 구분):
+  ① 3바이트 이하 (Nonstop 펌웨어 lora_app.c): 바이트 0~1 = 수위(mm, 보드에서 이미 변환), 바이트 2 = 펌프 상태
+  ② 7바이트 (팀원 펌웨어, 2026-11 초기화 후): 바이트 0~1 = 초음파 거리(mm, 센서~수면)
+     → 서버에서 수위로 바꿈: 수위(mm) = SENSOR_TO_GROUND_MM(센서~흙 표면, 기본 350) - 거리
+       관 600mm = 땅 위 350 + 땅 아래 250 → 빈 관(거리 600) = -250mm
+     나머지 바이트(2~6)의 뜻은 아직 확인 전이라 펌프 상태는 저장하지 않음 (raw에 원본 보관)
+  그 밖의 길이(기본 펌웨어 상태 정보 등)와 측정 실패 값은 저장하지 않고 이유만 응답
+  모두 부호 있는 16비트 빅엔디언, 측정 실패 시 -999. 저장할 때는 cm로 바꿈
 
 받는 JSON 모양이 서버마다 조금씩 달라서 아래 이름을 모두 받음:
   기기 번호: devEUI / devEui / dev_eui / deviceInfo.devEui
@@ -28,6 +32,10 @@ from .settings import experiment_mode
 router = APIRouter(prefix="/lorawan", tags=["LoRaWAN 업링크 수신"])
 
 INVALID_READING_MM = -999  # 펌웨어가 초음파 측정 실패 때 보내는 값
+# 거리 형식(7바이트) 변환 기준: 센서에서 흙 표면까지 거리, 관 바닥(빈 관) 수위
+SENSOR_TO_GROUND_MM = int(os.environ.get("SENSOR_TO_GROUND_MM", "350"))
+LEVEL_MIN_MM = -int(os.environ.get("PIPE_BELOW_GROUND_MM", "250"))
+DISTANCE_VALID_MM = (30, 4500)  # 초음파 센서 측정 범위 (A02YYUW)
 
 
 def _dev_eui(body: dict) -> str:
@@ -70,13 +78,38 @@ def _measured_at(body: dict) -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _is_distance_format(raw: bytes) -> bool:
+    return len(raw) == 7
+
+
+def _is_known_format(raw: bytes) -> bool:
+    # 2~3바이트(Nonstop 펌웨어) 또는 7바이트(팀원 펌웨어). 그 밖(예: 기본 펌웨어의 15바이트 상태 정보)은 센서 값이 아님
+    return 2 <= len(raw) <= 3 or _is_distance_format(raw)
+
+
 def _pump_on(raw: bytes) -> bool | None:
+    if _is_distance_format(raw):
+        return None  # 7바이트 형식의 펌프 바이트 위치는 확인 전
     return bool(raw[2]) if len(raw) >= 3 else None
+
+
+def _distance_mm(raw: bytes) -> int | None:
+    if not _is_distance_format(raw):
+        return None
+    mm = int.from_bytes(raw[:2], byteorder="big", signed=True)
+    return mm if DISTANCE_VALID_MM[0] <= mm <= DISTANCE_VALID_MM[1] else None
 
 
 def _water_level_cm(raw: bytes) -> float | None:
     if len(raw) < 2:
         return None
+    if _is_distance_format(raw):
+        distance = _distance_mm(raw)
+        if distance is None:
+            return None
+        # 거리 → 흙 표면 기준 수위. 관 바닥보다 아래로 잰 값(반사 등)은 빈 관으로 봄
+        mm = max(LEVEL_MIN_MM, min(SENSOR_TO_GROUND_MM, SENSOR_TO_GROUND_MM - distance))
+        return round(mm / 10, 1)
     mm = int.from_bytes(raw[:2], byteorder="big", signed=True)
     if mm == INVALID_READING_MM:
         return None
@@ -107,7 +140,13 @@ async def receive_uplink(request: Request, token: str | None = None):
         # 데이터 없는 프레임(접속 확인 등)은 저장하지 않고 성공으로 응답
         return {"stored": False, "reason": "데이터 없음", "dev_eui": dev_eui}
 
+    if not _is_known_format(raw):
+        return {"stored": False, "reason": f"수위 데이터 형식이 아님 ({len(raw)}바이트)", "dev_eui": dev_eui,
+                "payload_hex": raw.hex()}
     level = _water_level_cm(raw)
+    if level is None:
+        # 측정 실패(-999)나 범위 밖 거리: 수위 칸은 비울 수 없어서 저장하지 않음
+        return {"stored": False, "reason": "센서 측정 실패 값", "dev_eui": dev_eui, "payload_hex": raw.hex()}
     pump_on = _pump_on(raw)
     measured_at = _measured_at(body)
     with get_engine().begin() as conn:
@@ -124,7 +163,9 @@ async def receive_uplink(request: Request, token: str | None = None):
                  "values (:node_id, :level, :pump_on, :measured_at, cast(:raw as jsonb), :exp) returning id"),
             {"node_id": node_id, "level": level, "pump_on": pump_on, "measured_at": measured_at,
              "exp": experiment_mode(),
-             "raw": json.dumps({"source": "lorawan", "payload_hex": raw.hex(), "body": body}, ensure_ascii=False)},
+             "raw": json.dumps({"source": "lorawan", "payload_hex": raw.hex(), "distance_mm": _distance_mm(raw),
+                                "sensor_to_ground_mm": SENSOR_TO_GROUND_MM if _is_distance_format(raw) else None,
+                                "body": body}, ensure_ascii=False)},
         ).scalar()
     return {"stored": True, "id": log_id, "node_id": node_id, "inner_water_level": level, "pump_on": pump_on,
             "measured_at": measured_at.isoformat(), "valid_reading": level is not None}
