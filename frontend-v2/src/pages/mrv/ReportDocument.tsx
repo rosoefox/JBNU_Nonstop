@@ -1,8 +1,10 @@
 // Gold Standard Monitoring Report 양식(v2.0) 순서대로 보여주는 보고서 문서
-import { ComingSoon } from '../../components/common'
+import { Download, FileText } from 'lucide-react'
+import { useState } from 'react'
+import { downloadGsDocx } from '../../lib/api'
 import { DRY_LEVEL_CM, REARM_LEVEL_CM, STALE_MINUTES, WATER_REGIMES } from '../../lib/domain'
-import { Formula, Grid, GsTag, KeyValue, NotApplicable, Section, Sub } from './parts'
-import { ddmmyyyy, fmt, toDms, type GsReport } from './shared'
+import { Formula, Grid, KeyValue, Section, Sub } from './parts'
+import { ddmmyyyy, fmt, kstStamp, toDms, type GsReport } from './shared'
 
 export default function ReportDocument({ report }: { report: GsReport }) {
   const { mrv } = report
@@ -15,6 +17,33 @@ export default function ReportDocument({ report }: { report: GsReport }) {
   const title = report.project_title.trim() || `AWD 논 물관리 메탄 감축 사업 (${report.field_name})`
   const operator = `${report.operator}${report.manager.trim() ? ` (담당: ${report.manager.trim()})` : ''}`
   const drains = mrv.drain_events.length
+  const experiment = mrv.data_scope === 'experiment'
+
+  // GS 원본 양식(.docx): 서버가 같은 입력으로 다시 계산해서 원본 양식 칸에 채움 (영어, 제출용 초안)
+  const [docxState, setDocxState] = useState<'idle' | 'loading' | string>('idle')
+  const saveDocx = async () => {
+    setDocxState('loading')
+    try {
+      await downloadGsDocx(report.field_id, {
+        start: report.season_start, end: report.season_end, sf_p: f.sf_p, sf_o: f.sf_o, data: mrv.data_scope ?? 'real',
+        operator: report.operator, manager: report.manager, project_title: report.project_title, region: report.region,
+        period_no: report.period_no, version: report.version, memo: report.memo,
+        organic_type: report.organic_type, organic_amount: report.organic_amount, preseason: report.preseason,
+      })
+      setDocxState('idle')
+    } catch (e) {
+      setDocxState(e instanceof Error ? e.message : '내려받지 못했어요')
+    }
+  }
+
+  // 요약 PDF 저장: 브라우저 인쇄 창에서 'PDF로 저장'. 파일 이름은 GS 양식 규칙(…_MR_MP기간_날짜_VER_버전)을 따름
+  const savePdf = () => {
+    const before = document.title
+    const today = ddmmyyyy(kstStamp(new Date().toISOString())).replaceAll('/', '')
+    document.title = `Nonstop_MR_MP${report.period_no}_${today}_VER_${report.version || '1.0'}`
+    window.addEventListener('afterprint', () => { document.title = before }, { once: true })
+    window.print()
+  }
 
   const kpis = [
     { label: '모니터링 기간', value: `${mrv.season_days}일`, sub: period },
@@ -24,21 +53,34 @@ export default function ReportDocument({ report }: { report: GsReport }) {
   ]
 
   return (
-    <article className="grid gap-5">
+    <article className="mrv-report grid gap-5">
       {/* 표지 */}
       <header className="overflow-hidden rounded-xl bg-sprout-800 text-sprout-100">
         <div className="flex flex-wrap items-start justify-between gap-4 px-6 py-6">
           <div className="min-w-0">
-            <p className="font-mono text-xs tracking-wider text-sprout-300">MONITORING REPORT · 제{report.period_no}차 모니터링 기간</p>
+            <p className="font-mono text-xs tracking-wider text-sprout-300">MRV 요약 보고서 · 제{report.period_no}차 모니터링 기간</p>
             <h2 className="mt-2 font-display text-2xl font-bold text-white">{title}</h2>
             <p className="mt-2 text-sm text-sprout-200">{period} ({mrv.season_days}일) · {report.field_name}</p>
             <p className="mt-3 inline-block rounded-md bg-sprout-700 px-2.5 py-1 text-xs font-semibold text-sprout-200">
               Gold Standard for the Global Goals · Monitoring Report 양식(v2.0) 기준
             </p>
           </div>
-          <button type="button" disabled title="준비중" className="cursor-not-allowed rounded-lg border border-sprout-600 px-3 py-2 text-xs font-semibold text-sprout-300/70">
-            PDF·Excel 다운로드 (준비중)
-          </button>
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2 print:hidden">
+              <button type="button" onClick={saveDocx} disabled={docxState === 'loading'} title="GS 원본 양식(v2.0)에 값을 채운 Word 파일 (영어, 제출용 초안)" className="inline-flex items-center gap-1.5 rounded-lg bg-sprout-300 px-3 py-2 text-xs font-semibold text-sprout-900 hover:bg-sprout-200 disabled:opacity-60">
+                <FileText className="size-3.5" /> {docxState === 'loading' ? '만드는 중...' : 'GS 양식 (.docx)'}
+              </button>
+              <button type="button" onClick={savePdf} title="이 화면의 요약 보고서를 PDF로 (내부 검토용)" className="inline-flex items-center gap-1.5 rounded-lg border border-sprout-300 px-3 py-2 text-xs font-semibold text-sprout-200 hover:bg-sprout-700">
+                <Download className="size-3.5" /> 요약 PDF
+              </button>
+            </div>
+            {docxState !== 'idle' && docxState !== 'loading' && (
+              <span className="text-[11px] text-clay-200 print:hidden">{docxState}</span>
+            )}
+            {experiment && (
+              <span className="rounded-md border border-mustard-200 bg-mustard-100 px-2 py-0.5 text-[11px] font-bold text-mustard-600">실험(예시) 데이터</span>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-2 bg-sprout-900/40 md:grid-cols-4">
           {kpis.map((k) => (
@@ -55,11 +97,9 @@ export default function ReportDocument({ report }: { report: GsReport }) {
 
       <Section code="KEY" title="핵심 사업 정보" en="Key Project Information">
         <KeyValue rows={[
-          ['GS 사업 ID', <GsTag key="id" />],
           ['사업명', title],
-          ['PDD 버전 / 설계 인증일', <GsTag key="pdd" />],
           ['모니터링 보고서 버전', report.version || '-'],
-          ['보고서 작성일', ddmmyyyy(report.generated_at)],
+          ['보고서 작성일', ddmmyyyy(kstStamp(report.generated_at))],
           ['모니터링 기간', `제${report.period_no}차 · ${period} (시작일·종료일 포함, ${mrv.season_days}일)`],
           ['사업자', operator],
           ['대상국', '대한민국 (Republic of Korea)'],
@@ -77,9 +117,6 @@ export default function ReportDocument({ report }: { report: GsReport }) {
               rows={[['GS VERs', `${fmt(c.net_tco2e, 3)} tCO2e`, ddmmyyyy(report.season_start), ddmmyyyy(report.season_end)]]} />
           </Sub>
         </div>
-        <Sub code="Table 3." title="버퍼 기여">
-          <ComingSoon gs><Grid minWidth={480} headers={['기간', '총 GS VERs', '버퍼 비율', '버퍼', '순 GS VERs']} rows={[['-', '-', '-', '-', '-']]} /></ComingSoon>
-        </Sub>
       </Section>
 
       <Section code="A" title="사업 설명" en="Description of Project">
@@ -101,18 +138,13 @@ export default function ReportDocument({ report }: { report: GsReport }) {
               ['사업 면적', `${fmt(mrv.area_ha)} ha`],
             ]} />
           </Sub>
-          <div className="grid gap-4">
-            <Sub code="A.3" title="적용 방법론 참조">
-              <KeyValue rows={[
-                ['방법론', 'Gold Standard 벼 재배 물관리 개선(AWD) 메탄 감축'],
-                ['산정 방법', '방법 3 IPCC 기본값 간이법 (방법 1·2 준비중)'],
-                ['참조 지침', 'IPCC 2019 Refinement Vol.4 Ch.5.5'],
-              ]} />
-            </Sub>
-            <Sub code="A.4" title="인증 기간">
-              <ComingSoon gs><KeyValue rows={[['시작일', '-'], ['종료일', '-'], ['갱신 주기', '-']]} /></ComingSoon>
-            </Sub>
-          </div>
+          <Sub code="A.3" title="적용 방법론 참조">
+            <KeyValue rows={[
+              ['방법론', 'Gold Standard 벼 재배 물관리 개선(AWD) 메탄 감축'],
+              ['산정 방법', '방법 3 IPCC 기본값 간이법'],
+              ['참조 지침', 'IPCC 2019 Refinement Vol.4 Ch.5.5'],
+            ]} />
+          </Sub>
         </div>
       </Section>
 
@@ -122,9 +154,6 @@ export default function ReportDocument({ report }: { report: GsReport }) {
             {ddmmyyyy(report.season_start)} 이앙과 함께 모니터링 센서({mrv.node_names.join(', ') || '-'})를 운영했고, 재배기간 동안 낙수 {drains}회를 실시했습니다.
           </p>
           {report.memo.trim() && <p className="mt-2 rounded-lg bg-soil-100 px-3 py-2 text-sm whitespace-pre-wrap text-soil-700">{report.memo.trim()}</p>}
-        </Sub>
-        <Sub code="B.1.1 · B.2" title="후속 조치 요청 / 설계 인증 이후 변경">
-          <ComingSoon gs><KeyValue rows={[['후속 조치 요청 (FAR)', '-'], ['일시적 이탈 · 정정', '-'], ['영구 변경 · 설계 변경', '-']]} /></ComingSoon>
         </Sub>
       </Section>
 
@@ -175,11 +204,6 @@ export default function ReportDocument({ report }: { report: GsReport }) {
             ['데이터 수집 가동률', ind.uptime_rate ?? '-', '%', `받은 측정 수 ÷ 받아야 할 측정 수 (${ind.expected_uplink_minutes}분 주기, 목표 90%)`],
           ]} />
         </Sub>
-        <div className="grid gap-3 lg:grid-cols-3">
-          <Sub code="D.3" title="이전 기간과 비교"><NotApplicable reason="1차 모니터링 기간이라 비교 대상이 없습니다." /></Sub>
-          <Sub code="D.4" title="표본 계획"><NotApplicable reason="표본 추출 없이 전체를 연속 측정합니다." /></Sub>
-          <Sub code="D.5 · D.6" title="반전 · PER"><NotApplicable reason="배출 감축 사업이라 흡수(Removal) 항목이 없습니다." /></Sub>
-        </div>
       </Section>
 
       <Section code="E" title="감축량 산정" en="Calculation of Emission Reduction">
@@ -197,27 +221,40 @@ export default function ReportDocument({ report }: { report: GsReport }) {
             </Formula>
           </Sub>
         </div>
-        <Sub code="E.3" title="누출 배출량"><ComingSoon><Formula>LE = - tCO2e</Formula></ComingSoon></Sub>
+        <Sub code="E.3" title="누출 배출량"><Formula>LE = 0 tCO2e (방법론 3.7.1: 사업 경계 밖 영향은 무시 가능)</Formula></Sub>
         <Sub code="E.4" title="순 감축량">
           <Grid minWidth={600} headers={['SDG', '기준 배출', '사업 배출', '누출', '순 감축 (tCO2e)']}
-            rows={[['13 · Emission reductions', fmt(c.baseline_tco2e, 3), fmt(c.project_tco2e, 3), '준비중', <b key="net" className="text-sprout-700">{fmt(c.net_tco2e, 3)}</b>]]} />
+            rows={[['13 · Emission reductions', fmt(c.baseline_tco2e, 3), fmt(c.project_tco2e, 3), '0.000', <b key="net" className="text-sprout-700">{fmt(c.net_tco2e, 3)}</b>]]} />
           <p className="mt-2 text-xs text-soil-500">
             순 감축 = (BE − PE) × (1 − {f.uncertainty}) = ({fmt(c.baseline_tco2e, 3)} − {fmt(c.project_tco2e, 3)}) × {1 - f.uncertainty} = {fmt(c.net_tco2e, 3)} tCO2e
           </p>
         </Sub>
-        <Sub code="E.5 · E.6" title="PDD 예상치와 비교">
-          <ComingSoon gs><Grid minWidth={420} headers={['SDG', 'PDD 예상치', '실제 달성치']} rows={[['13', '-', fmt(c.net_tco2e, 3)]]} /></ComingSoon>
-        </Sub>
       </Section>
 
-      <Section code="F–L" title="기타 보고 항목" en="Safeguards · Gender · SD · Stakeholder · Benefit · Co-benefits · Double issuance">
-        <ComingSoon gs>
-          <KeyValue rows={[
-            ['F. 안전장치', 'Safeguards Reporting'], ['G. 젠더', 'Gender Reporting'], ['H. 지속가능발전 기여', 'SD Contribution'],
-            ['I. 이해관계자 의견', 'Stakeholder Inputs'], ['J. 이익 공유', 'Benefit Sharing'], ['K·L. 부수 효과 · 이중 발행 방지', 'Co-benefits · Double Issuance'],
-          ]} />
-        </ComingSoon>
-      </Section>
+      {/* GS에 정식 등록해야 채울 수 있는 칸은 본문에서 빼고 여기 한곳에 모음 */}
+      <section className="rounded-xl border border-lavender-200 bg-lavender-100/40 p-5">
+        <h2 className="font-display text-lg font-bold">GS 정식 등록 시 추가되는 항목</h2>
+        <p className="mt-1 text-sm text-soil-600">
+          아래 항목은 Gold Standard에 사업을 등록하고 검증기관 심사를 받아야 정해지는 값이라, 이 보고서에서는 비워 둡니다.
+        </p>
+        <Grid minWidth={560} left={[0, 1]} headers={['양식 위치', '항목', '정해지는 때']} rows={[
+          ['KEY', 'GS 사업 ID · PDD 버전 / 설계 인증일', 'GS 등록 승인 시'],
+          ['KEY 표 3', '버퍼 기여 (예비로 떼어 두는 배출권)', 'GS 규정에 따라 발행 시'],
+          ['A.4', '인증 기간 (시작·종료일, 갱신 주기)', 'GS 등록 시'],
+          ['B.1.1 · B.2', '후속 조치 요청 · 설계 변경', '검증기관 심사 후'],
+          ['E.5 · E.6', 'PDD 예상 감축량과 실제 비교', '등록된 PDD가 있을 때'],
+          ['F ~ L', '안전장치 · 젠더 · 이해관계자 의견 · 이익 공유 · 부수 효과 · 이중 발행 방지', '등록 사업 보고 시'],
+        ]} />
+        <p className="mt-3 text-xs text-soil-500">
+          해당 없음: D.3 이전 기간 비교(1차 기간) · D.4 표본 계획(전체 연속 측정) · D.5·D.6 반전·흡수(감축 사업이라 흡수 없음)
+        </p>
+      </section>
+
+      {/* 인쇄본 맨 끝: 언제 어떤 데이터로 만들었는지 */}
+      <p className="hidden text-[10px] text-soil-500 print:block">
+        Nonstop MRV 자동 생성 초안 · 작성 {ddmmyyyy(kstStamp(report.generated_at))} · 측정 {mrv.sample_count.toLocaleString('en-US')}건
+        {experiment ? ' · 실험(예시) 데이터' : ''} · 제출 전 영어 번역 및 검증기관(VVB) 검증 필요
+      </p>
     </article>
   )
 }

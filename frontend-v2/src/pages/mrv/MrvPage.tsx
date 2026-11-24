@@ -79,6 +79,7 @@ export default function MrvPage() {
         ...form,
         operator: form.operator.trim() || '미입력',
         region: form.region.trim() || (field.jibun_addr?.split(' ')[0] ?? ''),
+        field_id: field.id,
         field_name: field.field_name,
         location_desc: field.location_desc,
         latitude: field.latitude,
@@ -98,10 +99,12 @@ export default function MrvPage() {
   })
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-8">
-      <PageTitle title="MRV 보고서" subtitle="Gold Standard 방법론 기반 AWD 메탄 감축량 보고 · 재배기간 단위" />
+    <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-8 print:max-w-none print:p-0">
+      <div className="print:hidden">
+        <PageTitle title="MRV 보고서" subtitle="Gold Standard 방법론 기반 AWD 메탄 감축량 보고 · 재배기간 단위" />
+      </div>
 
-      <Card className="grid gap-5 p-5">
+      <Card className="grid gap-5 p-5 print:hidden">
         {/* 1. 꼭 필요한 것: 논 · 재배기간 */}
         <div className="grid gap-4 md:grid-cols-[1.3fr_1fr_1fr_auto] md:items-end">
           <Field label="대상 논" required>
@@ -184,7 +187,7 @@ export default function MrvPage() {
       </Card>
 
       {report ? <ReportDocument report={report} /> : (
-        <Card className="px-6 py-12 text-center text-sm text-soil-500">필수 항목(*)을 입력하고 보고서를 생성하세요.</Card>
+        <Card className="px-6 py-12 text-center text-sm text-soil-500 print:hidden">필수 항목(*)을 입력하고 보고서를 생성하세요.</Card>
       )}
     </div>
   )

@@ -145,8 +145,8 @@ function Brand() {
 export default function AppShell({ children }: { children?: ReactNode }) {
   const [open, setOpen] = useState(false)
   return (
-    <div className="flex h-dvh flex-col md:flex-row">
-      <aside className="hidden w-60 shrink-0 flex-col justify-between bg-sprout-800 px-4 py-6 md:flex">
+    <div className="flex h-dvh flex-col md:flex-row print:block print:h-auto">
+      <aside className="hidden w-60 shrink-0 flex-col justify-between bg-sprout-800 px-4 py-6 md:flex print:hidden">
         <div className="flex flex-col gap-8">
           <Brand />
           <NavItems />
@@ -160,7 +160,7 @@ export default function AppShell({ children }: { children?: ReactNode }) {
         </div>
       </aside>
 
-      <header className="flex items-center justify-between bg-sprout-800 px-4 py-3 md:hidden">
+      <header className="flex items-center justify-between bg-sprout-800 px-4 py-3 md:hidden print:hidden">
         <BrandInline />
         <button type="button" onClick={() => setOpen(!open)} className="rounded-lg p-2 text-sprout-100 hover:bg-sprout-700" aria-label="메뉴">
           {open ? <X className="size-5" /> : <Menu className="size-5" />}
@@ -173,7 +173,7 @@ export default function AppShell({ children }: { children?: ReactNode }) {
         </div>
       )}
 
-      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto print:overflow-visible">
         {children ?? <Outlet />}
       </main>
     </div>

@@ -97,6 +97,7 @@ export interface DrainEvent {
 // GET /fields/{id}/mrv
 export interface FieldMrv {
   node_names: string[]
+  data_scope?: 'all' | 'real' | 'experiment'
   sample_count: number
   interval_min: number | null
   drain_events: DrainEvent[]

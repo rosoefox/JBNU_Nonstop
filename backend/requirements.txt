@@ -6,3 +6,4 @@ python-dotenv==1.0.1
 earthengine-api
 pandas
 matplotlib>=3.9,<4
+python-docx==1.2.0

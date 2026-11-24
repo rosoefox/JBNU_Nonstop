@@ -32,6 +32,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json()
 }
 
+// GS 모니터링 보고서 원본 양식(.docx)에 값을 채워서 내려받기 (서버가 다시 계산해서 채움)
+export async function downloadGsDocx(fieldId: number, body: Record<string, unknown>) {
+  const res = await fetch(`${API_URL}/fields/${fieldId}/mrv/gs-docx`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    let detail = res.statusText
+    try { detail = (await res.json()).detail ?? detail } catch { /* JSON이 아니면 상태 문구 */ }
+    throw new ApiError(res.status, String(detail))
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'GS_Monitoring_Report.docx'
+  const url = URL.createObjectURL(await res.blob())
+  const a = Object.assign(document.createElement('a'), { href: url, download: name })
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export interface FieldCreate {
   field_name: string
   location_desc: string | null

@@ -69,6 +69,7 @@ export const EMPTY_INPUT: OperatorInput = {
 
 // 보고서 한 건 = 사업자 입력 + 논 정보 + 서버가 계산한 모니터링 결과 (낙수 시각은 한국 시각으로 바꿔 둠)
 export interface GsReport extends OperatorInput {
+  field_id: number
   field_name: string
   location_desc: string | null
   latitude: number

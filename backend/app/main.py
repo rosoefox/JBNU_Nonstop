@@ -8,7 +8,7 @@ from typing import Literal
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, IntegrityError
@@ -587,6 +587,48 @@ def field_mrv(
         ),
     }
 
+
+
+class GsDocxBody(BaseModel):
+    """GS 원본 양식 채우기용 입력 (보고서 화면의 입력값과 같음)."""
+    start: date
+    end: date
+    sf_p: float = Field(DEFAULT_SF_P, gt=0)
+    sf_o: float = Field(DEFAULT_SF_O, gt=0)
+    data: DataScope = "real"
+    operator: str = ""
+    manager: str = ""
+    project_title: str = ""
+    region: str = ""
+    period_no: int = Field(1, ge=1)
+    version: str = "1.0"
+    memo: str = ""
+    organic_type: str = ""
+    organic_amount: float = Field(0, ge=0)
+    preseason: str = ""
+
+
+@app.post("/fields/{field_id}/mrv/gs-docx")
+def field_mrv_gs_docx(field_id: int, body: GsDocxBody):
+    """Gold Standard 모니터링 보고서 원본 양식(v2.0 .docx)에 서버 계산 결과를 채워서 내려줌."""
+    from .gs_report import build_gs_docx  # 이 기능을 쓸 때만 python-docx를 불러옴
+
+    mrv = field_mrv(field_id, body.start, body.end, body.sf_p, body.sf_o, body.data)
+    if mrv["sample_count"] == 0:
+        raise HTTPException(status_code=400, detail="선택한 기간에 수위 기록이 없습니다.")
+    with get_engine().connect() as conn:
+        field = conn.execute(
+            text("select field_name, latitude, longitude, pnu, jibun_addr from fields where id = :id"), {"id": field_id}
+        ).mappings().one()
+    content = build_gs_docx(dict(field), mrv, body.model_dump(mode="json"))
+    stamp = datetime.now(timezone(timedelta(hours=9))).strftime("%d%m%Y")
+    version = re.sub(r"[^0-9A-Za-z.]", "", body.version) or "1.0"
+    filename = f"GSXXXXX_MR_MP{body.period_no}_{stamp}_VER_{version}.docx"
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"', "Access-Control-Expose-Headers": "Content-Disposition"},
+    )
 
 @app.get("/nodes/{node_id}/stats")
 def node_stats(node_id: int, data: DataScope = "all"):

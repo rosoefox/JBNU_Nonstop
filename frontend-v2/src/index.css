@@ -68,3 +68,54 @@ body {
 
 /* 지도 배경 위 기본 글꼴 */
 .leaflet-container { font-family: var(--font-sans); background: var(--color-soil-200); }
+
+/* MRV 보고서 PDF 저장 (인쇄): 제출 문서처럼 흑백 · A4 세로 · 쪽 번호. 화면 모양(초록)은 그대로 */
+@media print {
+  @page {
+    size: A4;
+    margin: 16mm 14mm 18mm;
+    @bottom-center { content: counter(page) " / " counter(pages); font-size: 9px; color: #555; }
+  }
+  html, body { background: #fff !important; }
+
+  .mrv-report { font-size: 11px; color: #111; }
+  /* 색·배경·둥근 모서리·그림자 모두 없앰 */
+  .mrv-report * {
+    color: #111 !important; background: transparent !important; border-color: #c8c8c8 !important;
+    border-radius: 0 !important; box-shadow: none !important; filter: none !important;
+  }
+  .mrv-report [class*="text-soil-5"], .mrv-report [class*="text-soil-6"],
+  .mrv-report [class*="text-sprout-3"], .mrv-report [class*="text-sprout-200"] { color: #555 !important; }
+
+  /* 격자(grid) 배치는 페이지가 넘어갈 때 표가 겹쳐서, 인쇄할 때만 위아래로 쌓음 */
+  .mrv-report, .mrv-report section, .mrv-report section .grid { display: block !important; }
+  .mrv-report > * + * { margin-top: 18px; }
+  .mrv-report section > * + *, .mrv-report section .grid > * + * { margin-top: 10px; }
+
+  /* 표지: 흰 바탕, 굵은 제목, 아래 요약 4칸 표 */
+  .mrv-report > header { border-bottom: 2px solid #111 !important; padding-bottom: 6px; }
+  .mrv-report > header > div:first-child { padding: 0 0 12px !important; }
+  .mrv-report > header h2 { font-size: 20px; }
+  .mrv-report > header > div:last-child { display: grid !important; grid-template-columns: repeat(4, 1fr); border: 1px solid #111 !important; }
+  .mrv-report > header > div:last-child > div { border: 0 !important; border-left: 1px solid #c8c8c8 !important; padding: 8px 10px !important; }
+  .mrv-report > header > div:last-child > div:first-child { border-left: 0 !important; }
+  .mrv-report > header > div:last-child p:nth-child(2) { font-size: 16px; }
+  .mrv-report > header span[class*="mustard"], .mrv-report > header p[class*="rounded-md"] { border: 1px solid #111 !important; padding: 1px 6px !important; }
+
+  /* 섹션: 카드 테두리 대신 제목 아래 선 */
+  .mrv-report section { border: 0 !important; padding: 0 !important; }
+  .mrv-report section > div:first-child { border-bottom: 1px solid #111 !important; padding-bottom: 4px; }
+  .mrv-report section > div:first-child > span:first-child { padding: 0 !important; font-weight: 700; font-size: 13px; }
+  .mrv-report h2 { font-size: 14px; break-after: avoid; }
+
+  /* 표: 회색 머리줄, 얇은 선 */
+  .mrv-report table { min-width: 0 !important; font-size: 10px; border-collapse: collapse; }
+  .mrv-report thead { display: table-header-group; }
+  .mrv-report thead th, .mrv-report tbody th { background: #efefef !important; }
+  .mrv-report .overflow-x-auto, .mrv-report .overflow-hidden { overflow: visible !important; }
+  .mrv-report tr, .mrv-report .min-w-0 > p { break-inside: avoid; }
+
+  /* 계산식: 왼쪽 회색 선만 */
+  .mrv-report [class*="border-l-4"] { border-left: 3px solid #888 !important; }
+  .mrv-report b, .mrv-report strong { font-weight: 700; }
+}
