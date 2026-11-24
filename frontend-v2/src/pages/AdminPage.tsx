@@ -1,6 +1,6 @@
 // 관리: 논·노드 등록, 필지 경계, 기기 상태, 데이터 표준(SensorThings API) 안내
 import clsx from 'clsx'
-import { Copy, ExternalLink, MapPin, Pencil, RefreshCw } from 'lucide-react'
+import { ChevronRight, Copy, ExternalLink, MapPin, Pencil, RefreshCw } from 'lucide-react'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { CircleMarker, useMapEvents } from 'react-leaflet'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -35,7 +35,7 @@ function PickPoint({ onPick }: { onPick: (lat: number, lng: number) => void }) {
 
 export default function AdminPage() {
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-6 md:px-8">
+    <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 md:px-8">
       <PageTitle title="관리" subtitle="논·센서 등록, 필지 경계, 기기 상태, 데이터 표준" />
       <div className="grid gap-5 xl:grid-cols-2">
         <AddFieldCard />
@@ -339,11 +339,15 @@ function StandardsCard() {
     }
   }
   return (
+    // 평소엔 접어 두고, 필요할 때 펼쳐 봄 (LX 표준 공개 확인용)
     <Card>
-      <CardHeader
-        title="데이터 표준 · OGC SensorThings API v1.1"
-        aside={<a href={`${API_URL}/docs`} target="_blank" rel="noreferrer" className={button('ghost', 'px-2 py-1 text-xs')}>API 문서 <ExternalLink className="size-3.5" /></a>}
-      />
+      <details className="group">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
+        <ChevronRight className="size-4 text-soil-500 transition-transform group-open:rotate-90" />
+        <span className="text-sm font-semibold text-forest-800">데이터 표준 · OGC SensorThings API v1.1</span>
+        <span className="ml-auto text-xs text-soil-500 group-open:hidden">눌러서 펼치기</span>
+        <a href={`${API_URL}/docs`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className={clsx(button('ghost', 'px-2 py-1 text-xs'), 'hidden group-open:inline-flex ml-auto')}>API 문서 <ExternalLink className="size-3.5" /></a>
+      </summary>
       <p className="px-4 text-sm text-soil-600">
         센서 관측 데이터를 OGC 국제 표준 형식으로 제공해요. 위치·필지는 OGC Simple Features(WGS84) 형식으로 저장해요.
       </p>
@@ -362,6 +366,7 @@ function StandardsCard() {
           )
         })}
       </ul>
+      </details>
     </Card>
   )
 }

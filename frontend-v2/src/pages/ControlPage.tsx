@@ -141,7 +141,13 @@ export default function ControlPage() {
 
         <Card className="grid grid-cols-3 divide-x divide-soil-200 py-3">
           <SummaryCell label="필지" value={`${summaries.length}`} unit="개" />
-          <SummaryCell label="수신 중 센서" value={`${activeNodes}/${allNodes.length}`} unit="대" alert={activeNodes < allNodes.length} />
+          <SummaryCell
+            label="센서"
+            value={`${allNodes.length}`}
+            unit="대"
+            sub={allNodes.length === 0 ? undefined : activeNodes === allNodes.length ? '모두 수신 중' : `${allNodes.length - activeNodes}대 신호 없음`}
+            subAlert={activeNodes < allNodes.length}
+          />
           <SummaryCell label="미해결 알림" value={`${unresolved.length}`} unit="건" alert={unresolved.length > 0} />
         </Card>
 
@@ -182,13 +188,14 @@ export default function ControlPage() {
   )
 }
 
-function SummaryCell({ label, value, unit, alert }: { label: string; value: string; unit: string; alert?: boolean }) {
+function SummaryCell({ label, value, unit, alert, sub, subAlert }: { label: string; value: string; unit: string; alert?: boolean; sub?: string; subAlert?: boolean }) {
   return (
     <div className="px-3 text-center">
       <p className="text-[11px] text-soil-600">{label}</p>
       <p className={clsx('mt-1 font-display text-xl font-bold tabular-nums', alert ? 'text-clay-600' : 'text-forest-800')}>
         {value}<span className="ml-0.5 font-sans text-xs font-medium text-soil-500">{unit}</span>
       </p>
+      {sub && <p className={clsx('mt-0.5 text-[11px]', subAlert ? 'font-medium text-clay-600' : 'text-soil-500')}>{sub}</p>}
     </div>
   )
 }
