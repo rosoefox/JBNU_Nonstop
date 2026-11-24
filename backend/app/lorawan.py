@@ -2,6 +2,7 @@
 
 센서 페이로드 (STM32 펌웨어 lora_app.c SendTxData):
   바이트 0~1 = 수위(mm), 부호 있는 16비트 빅엔디언. 측정 실패 시 -999
+  바이트 2   = 펌프 상태 (1=ON, 0=OFF). 자동 재관개 펌웨어부터 있음, 없으면 저장 안 함
   수위 = 400mm(센서~지표면 기준) - 초음파 거리. 저장할 때는 cm로 바꿈
 
 받는 JSON 모양이 서버마다 조금씩 달라서 아래 이름을 모두 받음:
@@ -68,6 +69,10 @@ def _measured_at(body: dict) -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _pump_on(raw: bytes) -> bool | None:
+    return bool(raw[2]) if len(raw) >= 3 else None
+
+
 def _water_level_cm(raw: bytes) -> float | None:
     if len(raw) < 2:
         return None
@@ -102,6 +107,7 @@ async def receive_uplink(request: Request, token: str | None = None):
         return {"stored": False, "reason": "데이터 없음", "dev_eui": dev_eui}
 
     level = _water_level_cm(raw)
+    pump_on = _pump_on(raw)
     measured_at = _measured_at(body)
     with get_engine().begin() as conn:
         node_id = conn.execute(
@@ -111,10 +117,10 @@ async def receive_uplink(request: Request, token: str | None = None):
             # 게이트웨이가 같은 데이터를 계속 다시 보내지 않게 200으로 응답하고 이유만 알림
             return {"stored": False, "reason": "등록되지 않은 센서 (웹 관리 페이지에서 DevEUI 등록 필요)", "dev_eui": dev_eui}
         log_id = conn.execute(
-            text("insert into sensor_logs (node_id, inner_water_level, measured_at, raw) "
-                 "values (:node_id, :level, :measured_at, cast(:raw as jsonb)) returning id"),
-            {"node_id": node_id, "level": level, "measured_at": measured_at,
+            text("insert into sensor_logs (node_id, inner_water_level, pump_on, measured_at, raw) "
+                 "values (:node_id, :level, :pump_on, :measured_at, cast(:raw as jsonb)) returning id"),
+            {"node_id": node_id, "level": level, "pump_on": pump_on, "measured_at": measured_at,
              "raw": json.dumps({"source": "lorawan", "payload_hex": raw.hex(), "body": body}, ensure_ascii=False)},
         ).scalar()
-    return {"stored": True, "id": log_id, "node_id": node_id, "inner_water_level": level,
+    return {"stored": True, "id": log_id, "node_id": node_id, "inner_water_level": level, "pump_on": pump_on,
             "measured_at": measured_at.isoformat(), "valid_reading": level is not None}
