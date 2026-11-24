@@ -1,15 +1,30 @@
 // MRV 보고서 화면에서 같이 쓰는 타입·상수·포맷 함수
 import type { FieldMrv } from '../../lib/types'
 
-// Gold Standard 방법론의 배출량 산정 방법 3가지 (현재는 방법 3만 사용)
-export const METHODS = [
-  { no: 1, name: '직접 측정', desc: '폐쇄 챔버로 논에서 메탄을 직접 채취·분석', ready: false },
-  { no: 2, name: '모델 기반', desc: '생지화학 모델(DNDC 등)로 배출량 추정', ready: false },
-  { no: 3, name: 'IPCC 기본값 간이법', desc: 'IPCC 기본 배출계수 × 물관리 보정계수(SF_w)', ready: true },
+
+// 유기물 종류별 환산계수 CFOA (IPCC 2019 Refinement 표 5.14). '기타'는 퇴비 값을 씀
+export const ORGANIC_TYPES = [
+  { name: '투입 없음', cfoa: 0 },
+  { name: '볏짚 (재배 30일 이상 전 투입)', cfoa: 0.19 },
+  { name: '볏짚 (재배 30일 이내 투입)', cfoa: 1.0 },
+  { name: '퇴비', cfoa: 0.17 },
+  { name: '축분', cfoa: 0.21 },
+  { name: '녹비', cfoa: 0.45 },
+  { name: '기타 (유박 등, 퇴비 계수 적용)', cfoa: 0.17 },
+]
+// 작기 전 물관리 보정계수 SF_p (IPCC 2019 Refinement 표 5.12)
+export const PRESEASON_TYPES = [
+  { name: '180일 미만 비담수', sf: 1.0 },
+  { name: '180일 이상 비담수', sf: 0.89 },
+  { name: '30일 이상 담수', sf: 2.41 },
+  { name: '365일 이상 비담수', sf: 0.59 },
 ]
 
-export const ORGANIC_TYPES = ['투입 없음', '볏짚', '퇴비', '축분', '녹비', '기타']
-export const PRESEASON_TYPES = ['180일 미만 비담수', '180일 이상 비담수', '30일 이상 담수', '365일 이상 비담수', '기타']
+// SF_o = (1 + 투입량(t/ha) × CFOA)^0.59 (IPCC 2019 식 5.3)
+export const calcSfO = (type: string, amountTPerHa: number) => {
+  const cfoa = ORGANIC_TYPES.find((o) => o.name === type)?.cfoa ?? 0
+  return Math.round(Math.pow(1 + Math.max(0, amountTPerHa) * cfoa, 0.59) * 100) / 100
+}
 
 // 입력칸 기본값 (백엔드 DEFAULT_SF_P / DEFAULT_SF_O와 같은 값)
 const DEFAULT_SF_P = 0.89
@@ -21,6 +36,7 @@ export interface OperatorInput {
   season_start: string
   season_end: string
   organic_type: string
+  organic_amount: number // 유기물 투입량 (t/ha)
   sf_o: number
   preseason: string
   sf_p: number
@@ -38,6 +54,7 @@ export const EMPTY_INPUT: OperatorInput = {
   season_start: '',
   season_end: '',
   organic_type: '',
+  organic_amount: 0,
   sf_o: DEFAULT_SF_O,
   preseason: '',
   sf_p: DEFAULT_SF_P,

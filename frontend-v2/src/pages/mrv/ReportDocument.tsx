@@ -146,7 +146,7 @@ export default function ReportDocument({ report }: { report: GsReport }) {
             ['EF_c', '기본 배출계수 (한국)', 'kgCH4/ha/day', 'E.1, E.2', f.ef_c, 'IPCC 2019'],
             ['SF_w', '물관리 보정계수', '-', 'E.1, E.2', '1.0 / 0.71 / 0.55', 'IPCC 2019'],
             ['SF_p', `작기 전 물관리 (${report.preseason})`, '-', 'E.1, E.2', f.sf_p, 'IPCC 2019 · 사업자 입력'],
-            ['SF_o', `유기물 투입 (${report.organic_type})`, '-', 'E.1, E.2', f.sf_o, 'IPCC 2019 · 사업자 입력'],
+            ['SF_o', `유기물 투입 (${report.organic_type}${report.organic_amount > 0 ? `, ${report.organic_amount} t/ha` : ''})`, '-', 'E.1, E.2', f.sf_o, 'IPCC 2019 · 사업자 입력'],
             ['GWP', '메탄 지구온난화지수', 'tCO2e/tCH4', 'E.1, E.2', f.gwp_ch4, 'IPCC AR5'],
             ['UNC', '불확도 차감', '%', 'E.4', unc, 'GS 방법론'],
           ]} />

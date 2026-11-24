@@ -414,7 +414,7 @@ MAX_GAP_MINUTES = 60
 
 
 def awd_indicators(rows, events, period_start: datetime, period_end: datetime,
-                   sample_count: int, node_count: int) -> dict:
+                   sample_count: int, node_count: int, data_interval_min: float | None = None) -> dict:
     """AWD 물관리 지표: 상태별 일수(담수/습윤/건조), 사이클 횟수, 준수율, 데이터 수집 가동률."""
     # 각 측정값이 다음 측정 전까지 유지됐다고 보고 상태별 시간을 더함
     minutes = {"flooded": 0.0, "wet": 0.0, "dry": 0.0}
@@ -431,6 +431,9 @@ def awd_indicators(rows, events, period_start: datetime, period_end: datetime,
     # 가동률: 첫 측정(설치 시점으로 간주)부터 기간 끝까지 받아야 할 측정 수 대비 실제 받은 수
     start = max(period_start, rows[0][1]) if rows else period_start
     uplink_minutes = alert_rules()["expected_uplink_minutes"]
+    # 센서가 원래 더 긴 주기로 보내는 데이터(예: 10분 간격 기록)면 그 주기를 기준으로 봄
+    if data_interval_min:
+        uplink_minutes = max(uplink_minutes, round(data_interval_min))
     expected = node_count * (period_end - start).total_seconds() / 60 / uplink_minutes
 
     return {
@@ -579,7 +582,8 @@ def field_mrv(
         },
         "calculation": carbon_reduction(area_ha, days, sf_w, sf_p, sf_o),
         "indicators": awd_indicators(
-            series, events, period_start, period_end, stats.sample_count, max(len(node_rows), 1)
+            series, events, period_start, period_end, stats.sample_count, max(len(node_rows), 1),
+            float(gap) / 60 if gap else None,
         ),
     }
 
