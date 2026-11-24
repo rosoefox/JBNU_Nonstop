@@ -306,7 +306,15 @@ def update_node(node_id: int, body: NodeUpdate):
     return to_dict(row)
 
 
-LOG_COLUMNS = "node_id, inner_water_level, pump_on, battery_voltage, measured_at"
+LOG_COLUMNS = "node_id, inner_water_level, pump_on, battery_voltage, measured_at, is_experiment"
+
+# 실험 모드에서 들어온 데이터(is_experiment)를 골라 보기: 전체 / 실제만 / 실험만
+DataScope = Literal["all", "real", "experiment"]
+
+
+def scope_sql(scope: str, col: str = "is_experiment") -> str:
+    """where 절 뒤에 붙일 조건 (앞에 and 포함)."""
+    return {"all": "", "real": f" and not {col}", "experiment": f" and {col}"}[scope]
 
 # 기간이 길면 점이 너무 많아져서 일정 간격으로 평균을 내서 보냄 (None = 원본 그대로)
 PERIODS = {
@@ -318,12 +326,12 @@ PERIODS = {
 
 
 @app.get("/nodes/latest")
-def latest_logs():
+def latest_logs(data: DataScope = "all"):
     """센서별 가장 최근 측정값."""
     with get_engine().connect() as conn:
         rows = conn.execute(
             text(
-                f"select distinct on (node_id) {LOG_COLUMNS} from sensor_logs "
+                f"select distinct on (node_id) {LOG_COLUMNS} from sensor_logs where true{scope_sql(data)} "
                 "order by node_id, measured_at desc"
             )
         ).all()
@@ -331,21 +339,23 @@ def latest_logs():
 
 
 @app.get("/nodes/{node_id}/logs")
-def node_logs(node_id: int, period: Literal["1h", "1d", "1w", "1m"] = "1d"):
+def node_logs(node_id: int, period: Literal["1h", "1d", "1w", "1m"] = "1d", data: DataScope = "all"):
     interval, bucket = PERIODS[period]
+    scope = scope_sql(data)
     if bucket is None:
         query = (
             f"select {LOG_COLUMNS} from sensor_logs "
-            "where node_id = :node_id and measured_at >= now() - cast(:interval as interval) "
+            f"where node_id = :node_id and measured_at >= now() - cast(:interval as interval){scope} "
             "order by measured_at"
         )
     else:
         query = (
             "select node_id, round(avg(inner_water_level)::numeric, 1) as inner_water_level, "
             "bool_or(pump_on) as pump_on, round(avg(battery_voltage)::numeric, 2) as battery_voltage, "
-            "date_bin(cast(:bucket as interval), measured_at, timestamptz '2000-01-01') as measured_at "
+            "date_bin(cast(:bucket as interval), measured_at, timestamptz '2000-01-01') as measured_at, "
+            "bool_or(is_experiment) as is_experiment "
             "from sensor_logs "
-            "where node_id = :node_id and measured_at >= now() - cast(:interval as interval) "
+            f"where node_id = :node_id and measured_at >= now() - cast(:interval as interval){scope} "
             "group by node_id, 5 order by 5"
         )
     with get_engine().connect() as conn:
@@ -436,7 +446,7 @@ def awd_indicators(rows, events, period_start: datetime, period_end: datetime,
 
 
 @app.get("/nodes/{node_id}/awd")
-def node_awd(node_id: int, period: Literal["1h", "1d", "1w", "1m"] = "1m"):
+def node_awd(node_id: int, period: Literal["1h", "1d", "1w", "1m"] = "1m", data: DataScope = "all"):
     """선택 기간의 낙수 횟수, 물관리 계수, AWD 지표."""
     interval, _ = PERIODS[period]
     with get_engine().connect() as conn:
@@ -444,8 +454,8 @@ def node_awd(node_id: int, period: Literal["1h", "1d", "1w", "1m"] = "1m"):
         rows = conn.execute(
             text(
                 "select inner_water_level, measured_at from sensor_logs "
-                "where node_id = :node_id and measured_at >= :start and inner_water_level is not null "
-                "order by measured_at"
+                "where node_id = :node_id and measured_at >= :start and inner_water_level is not null"
+                f"{scope_sql(data)} order by measured_at"
             ),
             {"node_id": node_id, "start": start},
         ).all()
@@ -496,6 +506,7 @@ def field_mrv(
     end: date,
     sf_p: float = Query(DEFAULT_SF_P, gt=0),
     sf_o: float = Query(DEFAULT_SF_O, gt=0),
+    data: DataScope = "real",
 ):
     """MRV 보고서용 재배기간(한국 날짜 기준, 시작·종료일 포함) 모니터링 데이터와 감축량."""
     if end < start:
@@ -503,6 +514,7 @@ def field_mrv(
     period = (
         "measured_at >= cast(:start as date)::timestamp at time zone 'Asia/Seoul' "
         "and measured_at < (cast(:end as date) + 1)::timestamp at time zone 'Asia/Seoul'"
+        + scope_sql(data)  # 보고서는 기본으로 실제 데이터만 (실험 데이터 제외)
     )
     params = {"field_id": field_id, "start": start, "end": end}
     with get_engine().connect() as conn:
@@ -552,6 +564,7 @@ def field_mrv(
     gap = stats.median_gap_sec
     return {
         "node_names": [r.node_name or f"Node {r.id}" for r in node_rows],
+        "data_scope": data,
         "sample_count": stats.sample_count,
         "interval_min": round(float(gap) / 60) if gap else None,
         "drain_events": events,
@@ -570,7 +583,7 @@ def field_mrv(
 
 
 @app.get("/nodes/{node_id}/stats")
-def node_stats(node_id: int):
+def node_stats(node_id: int, data: DataScope = "all"):
     """최근 24시간 수위 평균·최고·최저와 알람 수."""
     with get_engine().connect() as conn:
         row = conn.execute(
@@ -578,6 +591,7 @@ def node_stats(node_id: int):
                 "select round(avg(inner_water_level)::numeric, 1) as avg, "
                 "max(inner_water_level) as max, min(inner_water_level) as min "
                 "from sensor_logs where node_id = :node_id and measured_at >= now() - interval '24 hours'"
+                f"{scope_sql(data)}"
             ),
             {"node_id": node_id},
         ).one()
@@ -585,6 +599,7 @@ def node_stats(node_id: int):
             text(
                 "select count(*) from alerts "
                 "where node_id = :node_id and created_at >= now() - interval '24 hours'"
+                f"{scope_sql(data)}"
             ),
             {"node_id": node_id},
         ).scalar()
@@ -593,7 +608,7 @@ def node_stats(node_id: int):
 
 ALERT_SELECT = (
     "select a.id, a.node_id, n.node_name, n.field_id, n.has_pump, a.alert_type, a.water_level, a.message, "
-    "a.is_resolved, a.resolved_at, a.resolution_note, a.created_at "
+    "a.is_resolved, a.resolved_at, a.resolution_note, a.created_at, a.is_experiment "
     "from alerts a join nodes n on n.id = a.node_id"
 )
 
@@ -618,11 +633,11 @@ def refresh_derived_alerts(conn) -> None:
     # (사람이 먼저 해결 처리해도 같은 끊김으로 다시 만들지 않도록 마지막 측정 이후 알람 유무로 판단)
     conn.execute(
         text(
-            "insert into alerts (node_id, alert_type, water_level, message, created_at, is_test) "
+            "insert into alerts (node_id, alert_type, water_level, message, created_at, is_test, is_experiment) "
             "select l.node_id, 'COMM_LOST', l.inner_water_level, "
             "       '마지막 측정 후 ' || :minutes || '분 넘게 데이터 없음', "
-            "       l.measured_at + make_interval(mins => :minutes), l.is_test "
-            "from (select distinct on (node_id) node_id, inner_water_level, measured_at, is_test "
+            "       l.measured_at + make_interval(mins => :minutes), l.is_test, l.is_experiment "
+            "from (select distinct on (node_id) node_id, inner_water_level, measured_at, is_test, is_experiment "
             "      from sensor_logs order by node_id, measured_at desc) l "
             "where l.measured_at < now() - make_interval(mins => :minutes) "
             "  and not exists (select 1 from alerts a where a.node_id = l.node_id "
@@ -648,7 +663,7 @@ def refresh_derived_alerts(conn) -> None:
     conn.execute(
         text(
             "with l as ("
-            "  select node_id, measured_at, inner_water_level as lv, is_test, "
+            "  select node_id, measured_at, inner_water_level as lv, is_test, is_experiment, "
             "         case when inner_water_level <= :dry then 'LOW' "
             "              when inner_water_level > :target then 'HIGH' end as state "
             "  from sensor_logs where inner_water_level is not null "
@@ -658,7 +673,8 @@ def refresh_derived_alerts(conn) -> None:
             "          - row_number() over (partition by node_id, state order by measured_at) as grp from l), "
             "ep as ("
             "  select node_id, state, min(measured_at) as started, max(measured_at) as ended, "
-            "         min(lv) as lowest, max(lv) as highest, bool_or(is_test) as is_test "
+            "         min(lv) as lowest, max(lv) as highest, bool_or(is_test) as is_test, "
+            "         bool_or(is_experiment) as is_experiment "
             "  from g where state is not null group by node_id, state, grp), "
             "a as ("
             "  select ep.*, ep.started + make_interval(mins => :mins) as alert_at, "
@@ -666,12 +682,12 @@ def refresh_derived_alerts(conn) -> None:
             "              when n.has_pump then 'IRRIGATION_FAIL' else 'LOW_WATER' end as alert_type "
             "  from ep join nodes n on n.id = ep.node_id "
             "  where ep.ended - ep.started >= make_interval(mins => :mins)) "
-            "insert into alerts (node_id, alert_type, water_level, message, created_at, is_test) "
+            "insert into alerts (node_id, alert_type, water_level, message, created_at, is_test, is_experiment) "
             "select a.node_id, a.alert_type, "
             "       case when a.state = 'HIGH' then a.highest else a.lowest end, "
             "       case a.alert_type when 'HIGH_WATER' then :msg_high when 'LOW_WATER' then :msg_low "
             "            else :msg_fail end, "
-            "       a.alert_at, a.is_test "
+            "       a.alert_at, a.is_test, a.is_experiment "
             "from a "
             "where not exists (select 1 from alerts x where x.node_id = a.node_id "
             "                  and x.alert_type = a.alert_type and x.created_at = a.alert_at)"
@@ -688,11 +704,11 @@ def refresh_derived_alerts(conn) -> None:
 
 
 @app.get("/alerts")
-def list_alerts(field_id: int | None = None):
-    query = ALERT_SELECT
+def list_alerts(field_id: int | None = None, data: DataScope = "all"):
+    query = ALERT_SELECT + " where true" + scope_sql(data, "a.is_experiment")
     params = {}
     if field_id is not None:
-        query += " where n.field_id = :field_id"
+        query += " and n.field_id = :field_id"
         params["field_id"] = field_id
     with get_engine().begin() as conn:
         refresh_derived_alerts(conn)

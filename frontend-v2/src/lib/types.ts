@@ -41,6 +41,7 @@ export interface Alert {
   resolved_at: string | null
   resolution_note: string | null
   created_at: string
+  is_experiment?: boolean
 }
 
 export interface SensorLog {
@@ -49,6 +50,7 @@ export interface SensorLog {
   pump_on: boolean | null
   battery_voltage: number | null
   measured_at: string
+  is_experiment?: boolean // 실험 모드에서 들어온 데이터
 }
 
 export interface NodeStats {

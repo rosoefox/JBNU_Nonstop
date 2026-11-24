@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { getAlerts, getExperimentMode, getFields, getLatestLogs, getNodeAwd, getNodeLogs, getNodeStats, getNodes } from './api'
+import { useDataScope } from './dataScope'
 import { summarizeFields } from './fieldSummary'
 import type { Period, SensorLog } from './types'
 
@@ -14,11 +15,15 @@ export const useExperimentMode = () =>
 
 export const useNodes = () => useQuery({ queryKey: ['nodes'], queryFn: getNodes })
 
-export const useLatestLogs = () =>
-  useQuery({ queryKey: ['latest'], queryFn: getLatestLogs, refetchInterval: REFRESH_MS })
+export const useLatestLogs = () => {
+  const scope = useDataScope()
+  return useQuery({ queryKey: ['latest', scope], queryFn: () => getLatestLogs(scope), refetchInterval: REFRESH_MS })
+}
 
-export const useAlerts = (fieldId?: number | null) =>
-  useQuery({ queryKey: ['alerts', fieldId ?? 'all'], queryFn: () => getAlerts(fieldId), refetchInterval: REFRESH_MS })
+export const useAlerts = (fieldId?: number | null) => {
+  const scope = useDataScope()
+  return useQuery({ queryKey: ['alerts', fieldId ?? 'all', scope], queryFn: () => getAlerts(fieldId, scope), refetchInterval: REFRESH_MS })
+}
 
 // 서버와 DB 연결까지 확인 (/health/db)
 export const useServerHealth = () =>
@@ -33,19 +38,25 @@ export const useServerHealth = () =>
     retry: 1,
   })
 
-export const useNodeLogs = (nodeId: number | undefined, period: Period) =>
-  useQuery({
-    queryKey: ['logs', nodeId, period],
-    queryFn: () => getNodeLogs(nodeId!, period),
+export const useNodeLogs = (nodeId: number | undefined, period: Period) => {
+  const scope = useDataScope()
+  return useQuery({
+    queryKey: ['logs', nodeId, period, scope],
+    queryFn: () => getNodeLogs(nodeId!, period, scope),
     enabled: nodeId !== undefined,
     refetchInterval: REFRESH_MS,
   })
+}
 
-export const useNodeStats = (nodeId: number | undefined) =>
-  useQuery({ queryKey: ['stats', nodeId], queryFn: () => getNodeStats(nodeId!), enabled: nodeId !== undefined })
+export const useNodeStats = (nodeId: number | undefined) => {
+  const scope = useDataScope()
+  return useQuery({ queryKey: ['stats', nodeId, scope], queryFn: () => getNodeStats(nodeId!, scope), enabled: nodeId !== undefined })
+}
 
-export const useNodeAwd = (nodeId: number | undefined, period: Period) =>
-  useQuery({ queryKey: ['awd', nodeId, period], queryFn: () => getNodeAwd(nodeId!, period), enabled: nodeId !== undefined })
+export const useNodeAwd = (nodeId: number | undefined, period: Period) => {
+  const scope = useDataScope()
+  return useQuery({ queryKey: ['awd', nodeId, period, scope], queryFn: () => getNodeAwd(nodeId!, period, scope), enabled: nodeId !== undefined })
+}
 
 // 노드별 최신값을 노드 번호로 바로 찾을 수 있게
 export function useLatestMap() {

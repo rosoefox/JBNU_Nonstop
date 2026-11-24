@@ -23,6 +23,7 @@ from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import text
 
 from .db import get_engine
+from .settings import experiment_mode
 
 router = APIRouter(prefix="/lorawan", tags=["LoRaWAN 업링크 수신"])
 
@@ -117,9 +118,10 @@ async def receive_uplink(request: Request, token: str | None = None):
             # 게이트웨이가 같은 데이터를 계속 다시 보내지 않게 200으로 응답하고 이유만 알림
             return {"stored": False, "reason": "등록되지 않은 센서 (웹 관리 페이지에서 DevEUI 등록 필요)", "dev_eui": dev_eui}
         log_id = conn.execute(
-            text("insert into sensor_logs (node_id, inner_water_level, pump_on, measured_at, raw) "
-                 "values (:node_id, :level, :pump_on, :measured_at, cast(:raw as jsonb)) returning id"),
+            text("insert into sensor_logs (node_id, inner_water_level, pump_on, measured_at, raw, is_experiment) "
+                 "values (:node_id, :level, :pump_on, :measured_at, cast(:raw as jsonb), :exp) returning id"),
             {"node_id": node_id, "level": level, "pump_on": pump_on, "measured_at": measured_at,
+             "exp": experiment_mode(),
              "raw": json.dumps({"source": "lorawan", "payload_hex": raw.hex(), "body": body}, ensure_ascii=False)},
         ).scalar()
     return {"stored": True, "id": log_id, "node_id": node_id, "inner_water_level": level, "pump_on": pump_on,

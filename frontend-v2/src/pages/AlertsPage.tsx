@@ -114,6 +114,7 @@ function AlertRow({ alert: a }: { alert: Alert }) {
     <li className={clsx('px-4 py-4', a.is_resolved && 'bg-soil-50')}>
       <div className="flex flex-wrap items-start gap-3">
         <StatusBadge tone={a.is_resolved ? 'none' : meta.tone}>{meta.label}</StatusBadge>
+        {a.is_experiment && <span className="rounded-full bg-mustard-100 px-2 py-0.5 text-[11px] font-bold text-mustard-600">실험</span>}
         <div className="min-w-0 flex-1">
           <p className={clsx('text-sm font-semibold', a.is_resolved && 'text-soil-500')}>
             {a.node_name ?? `Node ${a.node_id}`} <span className="font-normal text-soil-500">· {a.water_level}cm</span>

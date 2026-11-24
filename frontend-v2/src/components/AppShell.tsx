@@ -4,6 +4,7 @@ import { Bell, FileText, FlaskConical, LandPlot, LogIn, Map, Menu, Satellite, Se
 import { useState, type ReactNode } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { setExperimentMode } from '../lib/api'
+import { DATA_SCOPE_LABEL, setDataScope, useDataScope, type DataScope } from '../lib/dataScope'
 import { useAlerts, useExperimentMode, useServerHealth } from '../lib/queries'
 
 const NAV: { to: string; label: string; icon: typeof Map; soon?: boolean; main?: boolean }[] = [
@@ -106,6 +107,25 @@ function ExperimentToggle() {
   )
 }
 
+// 화면에 보여줄 데이터: 전체 / 실제만 / 실험만 (실험 모드에서 들어온 데이터 구분)
+function DataScopeSwitch() {
+  const scope = useDataScope()
+  return (
+    <div className="flex items-center gap-2">
+      <span className="shrink-0 pl-1 text-[11px] text-sprout-300/70">데이터</span>
+      <div className="grid flex-1 grid-cols-3 gap-0.5 rounded-lg bg-sprout-900/40 p-0.5" role="radiogroup" aria-label="보여줄 데이터">
+        {(['all', 'real', 'experiment'] as DataScope[]).map((s) => (
+          <button key={s} type="button" role="radio" aria-checked={scope === s} onClick={() => setDataScope(s)}
+            className={clsx('rounded-md py-1 text-xs font-semibold transition-colors',
+              scope === s ? (s === 'experiment' ? 'bg-mustard-500 text-sprout-900' : 'bg-sprout-300 text-sprout-900') : 'text-sprout-200/70 hover:bg-sprout-700')}>
+            {DATA_SCOPE_LABEL[s]}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // 관리자 로그인 자리. 기능은 아직 없음
 function LoginButton() {
   return (
@@ -154,6 +174,7 @@ export default function AppShell({ children }: { children?: ReactNode }) {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <ExperimentToggle />
+            <DataScopeSwitch />
             <LoginButton />
           </div>
           <ServerStatus />
@@ -169,7 +190,7 @@ export default function AppShell({ children }: { children?: ReactNode }) {
       {open && (
         <div className="border-t border-sprout-700 bg-sprout-800 px-4 pt-3 pb-4 md:hidden">
           <NavItems onNavigate={() => setOpen(false)} />
-          <div className="mt-3 flex flex-col gap-2"><ExperimentToggle /><LoginButton /></div>
+          <div className="mt-3 flex flex-col gap-2"><ExperimentToggle /><DataScopeSwitch /><LoginButton /></div>
         </div>
       )}
 

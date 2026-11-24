@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from .db import get_engine
+from .settings import experiment_mode
 
 router = APIRouter(prefix="/v1.1", tags=["OGC SensorThings API v1.1"])
 
@@ -468,9 +469,9 @@ def _create_observation(body: dict, datastream_id: int | None, request: Request)
         if conn.execute(text("select 1 from nodes where id = :id"), {"id": node_id}).first() is None:
             raise HTTPException(status_code=404, detail=f"Datastreams({ds_id})를 찾을 수 없습니다")
         log_id = conn.execute(
-            text("insert into sensor_logs (node_id, inner_water_level, measured_at, raw) "
-                 "values (:node_id, :level, :measured_at, cast(:raw as jsonb)) returning id"),
-            {"node_id": node_id, "level": float(result), "measured_at": measured_at,
+            text("insert into sensor_logs (node_id, inner_water_level, measured_at, raw, is_experiment) "
+                 "values (:node_id, :level, :measured_at, cast(:raw as jsonb), :exp) returning id"),
+            {"node_id": node_id, "level": float(result), "measured_at": measured_at, "exp": experiment_mode(),
              "raw": json.dumps({"source": "sensorthings", "body": body}, ensure_ascii=False)},
         ).scalar()
         ctx = _Ctx(conn, _base_url(request))

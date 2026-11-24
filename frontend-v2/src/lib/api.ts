@@ -1,4 +1,5 @@
 import type { Alert, AwdSummary, Field, FieldMrv, Node, NodeStats, Period, SensorLog } from './types'
+import type { DataScope } from './dataScope'
 
 import { fetchParcel, type Parcel } from './vworld'
 
@@ -126,22 +127,24 @@ export const createNode = (body: NodeCreate) =>
 export const updateNode = (nodeId: number, body: NodeUpdate) =>
   request<Node>(`/nodes/${nodeId}`, { method: 'PATCH', body: JSON.stringify(body) })
 
-export const getLatestLogs = () => request<SensorLog[]>('/nodes/latest')
+// scope: 실험 데이터 포함 여부 (lib/dataScope.ts)
+export const getLatestLogs = (scope: DataScope = 'all') => request<SensorLog[]>(`/nodes/latest?data=${scope}`)
 
-export const getNodeLogs = (nodeId: number, period: Period) =>
-  request<SensorLog[]>(`/nodes/${nodeId}/logs?period=${period}`)
+export const getNodeLogs = (nodeId: number, period: Period, scope: DataScope = 'all') =>
+  request<SensorLog[]>(`/nodes/${nodeId}/logs?period=${period}&data=${scope}`)
 
-export const getNodeStats = (nodeId: number) => request<NodeStats>(`/nodes/${nodeId}/stats`)
+export const getNodeStats = (nodeId: number, scope: DataScope = 'all') => request<NodeStats>(`/nodes/${nodeId}/stats?data=${scope}`)
 
-export const getNodeAwd = (nodeId: number, period: Period) =>
-  request<AwdSummary>(`/nodes/${nodeId}/awd?period=${period}`)
+export const getNodeAwd = (nodeId: number, period: Period, scope: DataScope = 'all') =>
+  request<AwdSummary>(`/nodes/${nodeId}/awd?period=${period}&data=${scope}`)
 
-export const getAlerts = (fieldId?: number | null) =>
-  request<Alert[]>(fieldId ? `/alerts?field_id=${fieldId}` : '/alerts')
+export const getAlerts = (fieldId?: number | null, scope: DataScope = 'all') =>
+  request<Alert[]>(`/alerts?data=${scope}${fieldId ? `&field_id=${fieldId}` : ''}`)
 
 export const resolveAlert = (alertId: number, note?: string) =>
   request<Alert>(`/alerts/${alertId}/resolve`, { method: 'PATCH', body: JSON.stringify({ note: note ?? null }) })
 
 // start, end: 'YYYY-MM-DD' (한국 날짜, 시작·종료일 포함). 감축량 계산은 서버에서 함
-export const getFieldMrv = (fieldId: number, start: string, end: string, sfP: number, sfO: number) =>
-  request<FieldMrv>(`/fields/${fieldId}/mrv?start=${start}&end=${end}&sf_p=${sfP}&sf_o=${sfO}`)
+// 보고서는 기본으로 실제 데이터만 (실험 모드 데이터 제외)
+export const getFieldMrv = (fieldId: number, start: string, end: string, sfP: number, sfO: number, scope: DataScope = 'real') =>
+  request<FieldMrv>(`/fields/${fieldId}/mrv?start=${start}&end=${end}&sf_p=${sfP}&sf_o=${sfO}&data=${scope}`)
