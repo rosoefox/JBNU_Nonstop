@@ -3,8 +3,8 @@
 센서 페이로드는 두 가지를 받음 (길이로 구분):
   ① 3바이트 이하 (Nonstop 펌웨어 lora_app.c): 바이트 0~1 = 수위(mm, 보드에서 이미 변환), 바이트 2 = 펌프 상태
   ② 7바이트 (팀원 펌웨어, 2026-11 초기화 후): 바이트 0~1 = 초음파 거리(mm, 센서~수면)
-     → 서버에서 수위로 바꿈: 수위(mm) = SENSOR_TO_GROUND_MM(센서~흙 표면, 기본 350) - 거리
-       관 600mm = 땅 위 350 + 땅 아래 250 → 빈 관(거리 600) = -250mm
+     → 서버에서 수위로 바꿈: 수위(mm) = SENSOR_TO_GROUND_MM(센서~흙 표면, 기본 400) - 거리
+       관 600mm = 땅 위 400 + 땅 아래 200 → 빈 관(거리 600) = -200mm
      나머지 바이트(2~6)의 뜻은 아직 확인 전이라 펌프 상태는 저장하지 않음 (raw에 원본 보관)
   그 밖의 길이(기본 펌웨어 상태 정보 등)와 측정 실패 값은 저장하지 않고 이유만 응답
   모두 부호 있는 16비트 빅엔디언, 측정 실패 시 -999. 저장할 때는 cm로 바꿈
@@ -33,8 +33,8 @@ router = APIRouter(prefix="/lorawan", tags=["LoRaWAN 업링크 수신"])
 
 INVALID_READING_MM = -999  # 펌웨어가 초음파 측정 실패 때 보내는 값
 # 거리 형식(7바이트) 변환 기준: 센서에서 흙 표면까지 거리, 관 바닥(빈 관) 수위
-SENSOR_TO_GROUND_MM = int(os.environ.get("SENSOR_TO_GROUND_MM", "350"))
-LEVEL_MIN_MM = -int(os.environ.get("PIPE_BELOW_GROUND_MM", "250"))
+SENSOR_TO_GROUND_MM = int(os.environ.get("SENSOR_TO_GROUND_MM", "400"))
+LEVEL_MIN_MM = -int(os.environ.get("PIPE_BELOW_GROUND_MM", "200"))
 DISTANCE_VALID_MM = (30, 4500)  # 초음파 센서 측정 범위 (A02YYUW)
 
 
