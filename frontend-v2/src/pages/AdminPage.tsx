@@ -307,7 +307,7 @@ function DeviceTable() {
                   <td className="px-4 py-3">
                     <label className="inline-flex items-center gap-2 text-xs text-soil-600">
                       <input type="checkbox" checked={n.has_pump} onChange={() => toggle.mutate(n)} disabled={toggle.isPending} className="size-4 accent-rain-600" />
-                      {pumpStatus(n.has_pump, log?.pump_on).label}
+                      {pumpStatus(n.has_pump).label}
                     </label>
                   </td>
                 </tr>

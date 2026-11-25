@@ -75,15 +75,9 @@ export const ALERT_META: Record<AlertType, { label: string; tone: Tone }> = {
   COMM_LOST: { label: '통신 끊김', tone: 'stale' },
 }
 
-// 펌프 상태 (지도·패널·표 공용)
-export const pumpStatus = (hasPump: boolean, pumpOn: boolean | null | undefined): { label: string; tone: Tone } =>
-  !hasPump
-    ? { label: '펌프 없음', tone: 'none' }
-    : pumpOn === true
-      ? { label: '펌프 작동 중', tone: 'flooded' }
-      : pumpOn === false
-        ? { label: '펌프 정지', tone: 'none' }
-        : { label: '펌프 상태 수신 전', tone: 'none' }
+// 펌프 연결 여부 (표 공용). 작동 상태는 현재 펌웨어가 보내지 않아서 표시하지 않음
+export const pumpStatus = (hasPump: boolean): { label: string; tone: Tone } =>
+  hasPump ? { label: '연결됨', tone: 'flooded' } : { label: '연결 안 됨', tone: 'none' }
 
 // Gold Standard 물관리 구분 (낙수 횟수 → SF_w)
 export const WATER_REGIMES: Record<WaterRegime, { label: string; rule: string }> = {

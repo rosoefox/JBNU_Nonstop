@@ -253,7 +253,7 @@ function NodeTable({ nodes, latest }: { nodes: Node[]; latest: Record<number, Se
             {nodes.map((n) => {
               const log = latest[n.id]
               const st = currentStatus(log?.inner_water_level, log?.measured_at)
-              const pump = pumpStatus(n.has_pump, log?.pump_on)
+              const pump = pumpStatus(n.has_pump)
               return (
                 <tr key={n.id}>
                   <td className="px-4 py-3">
@@ -285,9 +285,7 @@ function NodeTable({ nodes, latest }: { nodes: Node[]; latest: Record<number, Se
       </div>
       {togglePump.isError && (
         <p className="px-4 pb-3 text-xs text-clay-600">{togglePump.error instanceof ApiError ? togglePump.error.message : '저장하지 못했어요'}</p>
-      )}
-      <p className="px-4 pb-4 text-xs text-soil-500">펌프 원격 켜기/끄기는 펌프 구매 후 연결할 예정이에요.</p>
-    </Card>
+      )}    </Card>
   )
 }
 
