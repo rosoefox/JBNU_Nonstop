@@ -341,29 +341,53 @@ def latest_logs(data: DataScope = "all"):
     return [to_dict(r) for r in rows]
 
 
-@app.get("/nodes/{node_id}/logs")
-def node_logs(node_id: int, period: Literal["1h", "1d", "1w", "1m"] = "1d", data: DataScope = "all"):
+ALL_MAX_POINTS = 500  # 전체 기간 그래프: 점이 이보다 많으면 일정 간격으로 평균
+
+
+def period_window(conn, node_id: int, period: str, scope: str):
+    """조회 구간 (시작, 끝, 평균 간격).
+    끝은 보통 지금이지만, 그 기간 안에 데이터가 하나도 없으면(예: 2022년 예시 데이터) 마지막 측정 시각.
+    전체 기간(all)은 첫 측정부터이고, 점 수에 맞춰 평균 간격을 정함."""
+    lo, hi, count, now = conn.execute(
+        text(f"select min(measured_at), max(measured_at), count(*), now() from sensor_logs where node_id = :node_id{scope}"),
+        {"node_id": node_id},
+    ).one()
+    if period == "all":
+        end = now if hi is None or hi >= now - timedelta(days=1) else hi
+        start = lo or end
+        span_min = (end - start).total_seconds() / 60
+        bucket = None if count <= ALL_MAX_POINTS * 2 else f"{max(1, math.ceil(span_min / ALL_MAX_POINTS))} minutes"
+        return start, end, bucket
     interval, bucket = PERIODS[period]
+    length = conn.execute(text("select cast(:interval as interval)"), {"interval": interval}).scalar()
+    end = now if hi is None or hi >= now - length else hi
+    return end - length, end, bucket
+
+
+@app.get("/nodes/{node_id}/logs")
+def node_logs(node_id: int, period: Literal["1h", "1d", "1w", "1m", "all"] = "1d", data: DataScope = "all"):
     scope = scope_sql(data)
-    if bucket is None:
-        query = (
-            f"select {LOG_COLUMNS} from sensor_logs "
-            f"where node_id = :node_id and measured_at >= now() - cast(:interval as interval){scope} "
-            "order by measured_at"
-        )
-    else:
-        query = (
-            "select node_id, round(avg(inner_water_level)::numeric, 1) as inner_water_level, "
-            "bool_or(pump_on) as pump_on, round(avg(battery_voltage)::numeric, 2) as battery_voltage, "
-            "date_bin(cast(:bucket as interval), measured_at, timestamptz '2000-01-01') as measured_at, "
-            "bool_or(is_experiment) as is_experiment "
-            "from sensor_logs "
-            f"where node_id = :node_id and measured_at >= now() - cast(:interval as interval){scope} "
-            "group by node_id, 5 order by 5"
-        )
+    window = f"measured_at >= :start and measured_at <= :end{scope}"
     with get_engine().connect() as conn:
+        start, end, bucket = period_window(conn, node_id, period, scope)
+        if bucket is None:
+            query = (
+                f"select {LOG_COLUMNS} from sensor_logs "
+                f"where node_id = :node_id and {window} "
+                "order by measured_at"
+            )
+        else:
+            query = (
+                "select node_id, round(avg(inner_water_level)::numeric, 1) as inner_water_level, "
+                "bool_or(pump_on) as pump_on, round(avg(battery_voltage)::numeric, 2) as battery_voltage, "
+                "date_bin(cast(:bucket as interval), measured_at, timestamptz '2000-01-01') as measured_at, "
+                "bool_or(is_experiment) as is_experiment "
+                "from sensor_logs "
+                f"where node_id = :node_id and {window} "
+                "group by node_id, 5 order by 5"
+            )
         rows = conn.execute(
-            text(query), {"node_id": node_id, "interval": interval, "bucket": bucket}
+            text(query), {"node_id": node_id, "start": start, "end": end, "bucket": bucket}
         ).all()
     return [to_dict(r) for r in rows]
 
@@ -455,29 +479,31 @@ def awd_indicators(rows, events, period_start: datetime, period_end: datetime,
 
 
 @app.get("/nodes/{node_id}/awd")
-def node_awd(node_id: int, period: Literal["1h", "1d", "1w", "1m"] = "1m", data: DataScope = "all"):
+def node_awd(node_id: int, period: Literal["1h", "1d", "1w", "1m", "all"] = "1m", data: DataScope = "all"):
     """선택 기간의 낙수 횟수, 물관리 계수, AWD 지표."""
-    interval, _ = PERIODS[period]
     with get_engine().connect() as conn:
-        now, start = conn.execute(text("select now(), now() - cast(:interval as interval)"), {"interval": interval}).one()
+        start, now, _ = period_window(conn, node_id, period, scope_sql(data))  # 데이터가 오래됐으면 마지막 측정 시각까지
         rows = conn.execute(
             text(
                 "select inner_water_level, measured_at from sensor_logs "
-                "where node_id = :node_id and measured_at >= :start and inner_water_level is not null"
-                f"{scope_sql(data)} order by measured_at"
+                "where node_id = :node_id and measured_at >= :start and measured_at <= :end "
+                f"and inner_water_level is not null{scope_sql(data)} order by measured_at"
             ),
-            {"node_id": node_id, "start": start},
+            {"node_id": node_id, "start": start, "end": now},
         ).all()
 
     events = detect_drains(rows)
     regime = water_regime(len(events))
+    # 측정 간격(중앙값): 원래 10분 간격으로 기록된 데이터(예시 논)는 그 주기로 가동률을 셈
+    gaps = sorted((b[1] - a[1]).total_seconds() / 60 for a, b in zip(rows, rows[1:]))
+    interval_min = gaps[len(gaps) // 2] if gaps else None
     return {
         "sample_count": len(rows),
         "drain_events": len(events),
         "last_drain_at": events[-1]["dry_at"] if events else None,
         "water_regime": regime,
         "sf_w": WATER_REGIMES[regime],
-        "indicators": awd_indicators(rows, events, start, now),
+        "indicators": awd_indicators(rows, events, start, now, interval_min),
     }
 
 

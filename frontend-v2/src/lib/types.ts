@@ -60,7 +60,7 @@ export interface NodeStats {
   alert_count: number
 }
 
-export type Period = '1h' | '1d' | '1w' | '1m'
+export type Period = '1h' | '1d' | '1w' | '1m' | 'all'
 
 export type WaterRegime = 'CONTINUOUS' | 'SINGLE' | 'MULTIPLE'
 

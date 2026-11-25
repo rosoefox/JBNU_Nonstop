@@ -106,4 +106,5 @@ export const PERIODS: { value: Period; label: string }[] = [
   { value: '1d', label: '1일' },
   { value: '1w', label: '1주' },
   { value: '1m', label: '1개월' },
+  { value: 'all', label: '전체' },
 ]
