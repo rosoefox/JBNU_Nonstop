@@ -2,10 +2,9 @@
 
 센서 페이로드는 두 가지를 받음 (길이로 구분):
   ① 3바이트 이하 (Nonstop 펌웨어 lora_app.c): 바이트 0~1 = 수위(mm, 보드에서 이미 변환), 바이트 2 = 펌프 상태
-  ② 7바이트 (팀원 펌웨어, 2026-11 초기화 후): 바이트 0~1 = 초음파 거리(mm, 센서~수면)
-     → 서버에서 수위로 바꿈: 수위(mm) = SENSOR_TO_GROUND_MM(센서~흙 표면, 기본 400) - 거리
-       관 600mm = 땅 위 400 + 땅 아래 200 → 빈 관(거리 600) = -200mm
-     나머지 바이트(2~6)의 뜻은 아직 확인 전이라 펌프 상태는 저장하지 않음 (raw에 원본 보관)
+  ② 7바이트 (팀원 펌웨어, 2026-11 초기화 후): 바이트 0~1 = 초음파 거리(mm, 센서~수면),
+     바이트 2~3 = 보드가 계산한 수위(mm) → 이 값을 그대로 수위로 저장 (보드와 웹 값을 같게)
+     거리가 센서 측정 범위 밖이면 측정 실패로 봄. 나머지 바이트(4~6)는 확인 전이라 펌프 상태는 저장하지 않음 (raw에 원본 보관)
   그 밖의 길이(기본 펌웨어 상태 정보 등)와 측정 실패 값은 저장하지 않고 이유만 응답
   모두 부호 있는 16비트 빅엔디언, 측정 실패 시 -999. 저장할 때는 cm로 바꿈
 
@@ -32,9 +31,6 @@ from .settings import experiment_mode
 router = APIRouter(prefix="/lorawan", tags=["LoRaWAN 업링크 수신"])
 
 INVALID_READING_MM = -999  # 펌웨어가 초음파 측정 실패 때 보내는 값
-# 거리 형식(7바이트) 변환 기준: 센서에서 흙 표면까지 거리, 관 바닥(빈 관) 수위
-SENSOR_TO_GROUND_MM = int(os.environ.get("SENSOR_TO_GROUND_MM", "400"))
-LEVEL_MIN_MM = -int(os.environ.get("PIPE_BELOW_GROUND_MM", "200"))
 DISTANCE_VALID_MM = (30, 4500)  # 초음파 센서 측정 범위 (A02YYUW)
 
 
@@ -100,15 +96,24 @@ def _distance_mm(raw: bytes) -> int | None:
     return mm if DISTANCE_VALID_MM[0] <= mm <= DISTANCE_VALID_MM[1] else None
 
 
+def _board_level_mm(raw: bytes) -> int | None:
+    """7바이트 형식의 바이트 2~3: 보드가 계산한 수위(mm). 측정 실패(-999)나 말도 안 되는 값은 None."""
+    if not _is_distance_format(raw):
+        return None
+    mm = int.from_bytes(raw[2:4], byteorder="big", signed=True)
+    return mm if mm != INVALID_READING_MM and -1000 <= mm <= 1000 else None
+
+
 def _water_level_cm(raw: bytes) -> float | None:
     if len(raw) < 2:
         return None
     if _is_distance_format(raw):
-        distance = _distance_mm(raw)
-        if distance is None:
+        if _distance_mm(raw) is None:
             return None
-        # 거리 → 흙 표면 기준 수위. 관 바닥보다 아래로 잰 값(반사 등)은 빈 관으로 봄
-        mm = max(LEVEL_MIN_MM, min(SENSOR_TO_GROUND_MM, SENSOR_TO_GROUND_MM - distance))
+        # 실험(2026-11-25~): 보드가 직접 계산해 보내는 수위(바이트 2~3, mm)를 그대로 씀 → 보드와 웹 값이 같음
+        mm = _board_level_mm(raw)
+        if mm is None:
+            return None
         return round(mm / 10, 1)
     mm = int.from_bytes(raw[:2], byteorder="big", signed=True)
     if mm == INVALID_READING_MM:
@@ -164,7 +169,8 @@ async def receive_uplink(request: Request, token: str | None = None):
             {"node_id": node_id, "level": level, "pump_on": pump_on, "measured_at": measured_at,
              "exp": experiment_mode(),
              "raw": json.dumps({"source": "lorawan", "payload_hex": raw.hex(), "distance_mm": _distance_mm(raw),
-                                "sensor_to_ground_mm": SENSOR_TO_GROUND_MM if _is_distance_format(raw) else None,
+                                "board_level_mm": _board_level_mm(raw),
+                                "level_source": "board" if _is_distance_format(raw) else None,
                                 "body": body}, ensure_ascii=False)},
         ).scalar()
     return {"stored": True, "id": log_id, "node_id": node_id, "inner_water_level": level, "pump_on": pump_on,
