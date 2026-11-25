@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import re
 from datetime import date, datetime, timedelta, timezone
@@ -414,7 +415,7 @@ MAX_GAP_MINUTES = 60
 
 
 def awd_indicators(rows, events, period_start: datetime, period_end: datetime,
-                   sample_count: int, node_count: int, data_interval_min: float | None = None) -> dict:
+                   data_interval_min: float | None = None) -> dict:
     """AWD 물관리 지표: 상태별 일수(담수/습윤/건조), 사이클 횟수, 준수율, 데이터 수집 가동률."""
     # 각 측정값이 다음 측정 전까지 유지됐다고 보고 상태별 시간을 더함
     minutes = {"flooded": 0.0, "wet": 0.0, "dry": 0.0}
@@ -428,13 +429,16 @@ def awd_indicators(rows, events, period_start: datetime, period_end: datetime,
     judged = [e for e in events if e["reflood_at"] is not None or period_end - e["dry_at"] >= limit]
     complied = [e for e in judged if e["reflood_at"] is not None and e["reflood_at"] - e["dry_at"] <= limit]
 
-    # 가동률: 첫 측정(설치 시점으로 간주)부터 기간 끝까지 받아야 할 측정 수 대비 실제 받은 수
+    # 가동률: 첫 측정(설치 시점으로 간주)부터 기간 끝까지를 업링크 주기 칸으로 나눠, 데이터가 1개 이상 들어온 칸의 비율
+    # (받은 개수로 세면 센서가 주기보다 자주 보낼 때 끊긴 구간이 가려져서 칸 단위로 셈)
     start = max(period_start, rows[0][1]) if rows else period_start
     uplink_minutes = alert_rules()["expected_uplink_minutes"]
     # 센서가 원래 더 긴 주기로 보내는 데이터(예: 10분 간격 기록)면 그 주기를 기준으로 봄
     if data_interval_min:
         uplink_minutes = max(uplink_minutes, round(data_interval_min))
-    expected = node_count * (period_end - start).total_seconds() / 60 / uplink_minutes
+    slot_sec = uplink_minutes * 60
+    expected = math.ceil((period_end - start).total_seconds() / slot_sec)
+    covered = len({int((t - start).total_seconds() // slot_sec) for _, t in rows if start <= t <= period_end})
 
     return {
         "flooded_days": round(minutes["flooded"] / 1440, 1),
@@ -445,7 +449,7 @@ def awd_indicators(rows, events, period_start: datetime, period_end: datetime,
         "compliant_events": len(complied),
         "judged_events": len(judged),
         "compliance_hours": COMPLIANCE_HOURS,
-        "uptime_rate": min(100.0, round(100 * sample_count / expected, 1)) if expected > 0 else None,
+        "uptime_rate": min(100.0, round(100 * covered / expected, 1)) if expected > 0 else None,
         "expected_uplink_minutes": uplink_minutes,
     }
 
@@ -473,7 +477,7 @@ def node_awd(node_id: int, period: Literal["1h", "1d", "1w", "1m"] = "1m", data:
         "last_drain_at": events[-1]["dry_at"] if events else None,
         "water_regime": regime,
         "sf_w": WATER_REGIMES[regime],
-        "indicators": awd_indicators(rows, events, start, now, len(rows), 1),
+        "indicators": awd_indicators(rows, events, start, now),
     }
 
 
@@ -581,9 +585,9 @@ def field_mrv(
             "gwp_ch4": GWP_CH4, "uncertainty": UNCERTAINTY,
         },
         "calculation": carbon_reduction(area_ha, days, sf_w, sf_p, sf_o),
+        # series는 10분 단위 평균이라 가동률도 10분 이상 칸으로 셈
         "indicators": awd_indicators(
-            series, events, period_start, period_end, stats.sample_count, max(len(node_rows), 1),
-            float(gap) / 60 if gap else None,
+            series, events, period_start, period_end, max(10.0, float(gap) / 60 if gap else 10.0),
         ),
     }
 

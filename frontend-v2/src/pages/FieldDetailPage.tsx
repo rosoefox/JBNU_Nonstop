@@ -91,8 +91,8 @@ export default function FieldDetailPage() {
         </select>
       </div>
 
-      {/* 지도 + 현재 상태 */}
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      {/* 지도 + 현재 상태 (grid-cols-1: 좁은 화면에서 안의 표가 화면 밖으로 늘어나지 않게) */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Card className="h-[320px] overflow-hidden">
           <VworldMap bounds={bounds}>
             {field.boundary && (
@@ -112,7 +112,7 @@ export default function FieldDetailPage() {
           </VworldMap>
         </Card>
 
-        <div className="grid gap-5">
+        <div className="grid grid-cols-1 gap-5">
           <Card className="px-5 py-4">
             <p className="text-xs text-soil-600">현재 평균 수위</p>
             <p className={clsx('mt-1 font-display text-5xl font-bold tabular-nums', summary.level === null && 'text-soil-400')}>
@@ -167,7 +167,7 @@ export default function FieldDetailPage() {
         </div>
       </Card>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <NodeTable nodes={nodes} latest={latest.map} />
         <Card>
           <CardHeader title={`이 필지의 미해결 알림 ${unresolved.length}건`}
@@ -175,9 +175,9 @@ export default function FieldDetailPage() {
           <ul className="divide-y divide-soil-200">
             {unresolved.slice(0, 6).map((a) => (
               <li key={a.id} className="flex items-start gap-3 px-4 py-3">
-                <StatusBadge tone={ALERT_META[a.alert_type].tone}>{ALERT_META[a.alert_type].label}</StatusBadge>
+                <span className="shrink-0"><StatusBadge tone={ALERT_META[a.alert_type].tone}>{ALERT_META[a.alert_type].label}</StatusBadge></span>
                 <div className="min-w-0 text-sm">
-                  <p className="truncate">{a.message}</p>
+                  <p className="lg:truncate">{a.message}</p>
                   <p className="text-xs text-soil-500">{a.node_name ?? `Node ${a.node_id}`} · {timeAgo(a.created_at)}</p>
                 </div>
               </li>
