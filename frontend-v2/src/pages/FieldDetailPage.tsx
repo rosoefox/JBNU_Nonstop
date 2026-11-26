@@ -14,7 +14,7 @@ import { SERIES_COLORS, button, input } from '../lib/classes'
 import {
   ALERT_META, DRY_LEVEL_CM, TONE_HEX, WATER_REGIMES, currentStatus, formatLevel, nodeLabel, pumpStatus, timeAgo,
 } from '../lib/domain'
-import { useAlerts, useDataScope, useFieldSummaries, useNodeAwd, useNodeStats } from '../lib/queries'
+import { useAlerts, useDataScope, useFieldSummaries, useLiveRefresh, useNodeAwd, useNodeStats } from '../lib/queries'
 import type { AwdIndicators, Field, Node, Period, SensorLog } from '../lib/types'
 
 export function FieldIndexRedirect() {
@@ -48,8 +48,9 @@ export default function FieldDetailPage() {
 
   // 이 논의 모든 노드 수위 기록 (그래프 선 하나씩)
   const scope = useDataScope()
+  const refresh = useLiveRefresh() // 실험 모드 5초, 운영 1분
   const logQueries = useQueries({
-    queries: nodes.map((n) => ({ queryKey: ['logs', n.id, period, scope], queryFn: () => getNodeLogs(n.id, period, scope), refetchInterval: 60_000 })),
+    queries: nodes.map((n) => ({ queryKey: ['logs', n.id, period, scope], queryFn: () => getNodeLogs(n.id, period, scope), refetchInterval: refresh })),
   })
   const series: LevelSeries[] = nodes.map((n, i) => ({
     id: n.id,

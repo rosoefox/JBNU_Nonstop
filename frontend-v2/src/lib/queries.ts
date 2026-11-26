@@ -7,6 +7,14 @@ import { summarizeFields } from './fieldSummary'
 import type { Period, SensorLog } from './types'
 
 const REFRESH_MS = 60_000 // 1분마다 최신값
+const LIVE_MS = 5_000 // 실험 모드: 수위·그래프는 5초마다 (시연 때 바로 보이게)
+const LIVE_ALERT_MS = 10_000 // 실험 모드: 알림은 10초마다 (알림 조회는 서버 판정까지 해서 조금 무거움)
+
+// 실험 모드면 짧게, 운영 모드면 1분
+export function useLiveRefresh(liveMs = LIVE_MS): number {
+  const { data } = useExperimentMode()
+  return data?.experiment_mode ? liveMs : REFRESH_MS
+}
 
 export const useFields = () => {
   const scope = useDataScope()
@@ -29,12 +37,14 @@ export const useNodes = () => {
 
 export const useLatestLogs = () => {
   const scope = useDataScope()
-  return useQuery({ queryKey: ['latest', scope], queryFn: () => getLatestLogs(scope), refetchInterval: REFRESH_MS })
+  const refresh = useLiveRefresh()
+  return useQuery({ queryKey: ['latest', scope], queryFn: () => getLatestLogs(scope), refetchInterval: refresh })
 }
 
 export const useAlerts = (fieldId?: number | null) => {
   const scope = useDataScope()
-  return useQuery({ queryKey: ['alerts', fieldId ?? 'all', scope], queryFn: () => getAlerts(fieldId, scope), refetchInterval: REFRESH_MS })
+  const refresh = useLiveRefresh(LIVE_ALERT_MS)
+  return useQuery({ queryKey: ['alerts', fieldId ?? 'all', scope], queryFn: () => getAlerts(fieldId, scope), refetchInterval: refresh })
 }
 
 // 서버와 DB 연결까지 확인 (/health/db)
@@ -52,11 +62,12 @@ export const useServerHealth = () =>
 
 export const useNodeLogs = (nodeId: number | undefined, period: Period) => {
   const scope = useDataScope()
+  const refresh = useLiveRefresh()
   return useQuery({
     queryKey: ['logs', nodeId, period, scope],
     queryFn: () => getNodeLogs(nodeId!, period, scope),
     enabled: nodeId !== undefined,
-    refetchInterval: REFRESH_MS,
+    refetchInterval: refresh,
   })
 }
 

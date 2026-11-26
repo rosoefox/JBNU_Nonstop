@@ -12,7 +12,7 @@ import {
   ALERT_META, LEVEL_STATUS, TONE_HEX, currentStatus, formatLevel, nodeLabel, timeAgo, type Tone,
 } from '../lib/domain'
 import { summarizeFields, type FieldSummary } from '../lib/fieldSummary'
-import { useAlerts, useFields, useLatestLogs, useNodes } from '../lib/queries'
+import { useAlerts, useFields, useLatestLogs, useLiveRefresh, useNodes } from '../lib/queries'
 import { TONE_DOT } from '../lib/tones'
 import type { SensorLog } from '../lib/types'
 
@@ -31,6 +31,7 @@ export default function ControlPage() {
   const fields = useFields()
   const nodes = useNodes()
   const latestQuery = useLatestLogs()
+  const refreshMs = useLiveRefresh()
   const alerts = useAlerts()
   const [hoverId, setHoverId] = useState<number | null>(null)
 
@@ -123,7 +124,7 @@ export default function ControlPage() {
           <div>
             <h1 className="font-display text-2xl font-bold">관제</h1>
             <p className="mt-1 text-xs text-soil-600">
-              {updatedAt ? `${updatedAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 기준 · 1분마다 갱신` : '불러오는 중'}
+              {updatedAt ? `${updatedAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: refreshMs < 60_000 ? '2-digit' : undefined })} 기준 · ${refreshMs < 60_000 ? `${refreshMs / 1000}초` : '1분'}마다 갱신` : '불러오는 중'}
             </p>
           </div>
           <button
