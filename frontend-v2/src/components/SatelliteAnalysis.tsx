@@ -290,14 +290,9 @@ export default function SatelliteAnalysis() {
                   </li>
                 ))}
               </ul>
-              <p className="mt-3 rounded-lg bg-soil-50 px-3 py-2 text-xs leading-relaxed text-soil-600">
-                <b className="font-semibold text-forest-800">VV란?</b> 위성이 레이더를 세로 방향 전파로 쏘고, 땅에서 튕겨 돌아온 세로 방향 신호의 세기(dB)예요.
-                물이 찬 논은 수면이 거울처럼 전파를 다른 쪽으로 튕겨 보내서 값이 <b className="font-semibold text-forest-800">낮고</b>,
-                물이 빠진 흙은 울퉁불퉁해서 전파가 되돌아와 값이 <b className="font-semibold text-forest-800">높아요</b>.
-              </p>
             </div>}
             <p className="mt-auto border-t border-soil-200 pt-3 text-xs leading-relaxed text-soil-600">
-              지도 색상은 Sentinel-1 VV 레이더 반사도예요 (파란색일수록 물이 고였을 가능성). 담수·낙수 판정은 검증 전 시험 규칙이며 광학 위성사진이 아니에요.
+              지도 색상은 Sentinel-1 VV 레이더 반사도예요 (파란색일수록 물이 고였을 가능성).
             </p>
           </div>
         </Card>

@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Bell, FileText, FlaskConical, LandPlot, LogIn, Map, Menu, Satellite, Settings, X } from 'lucide-react'
+import { Bell, FileText, FlaskConical, LandPlot, Map, Menu, Satellite, Settings, X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { setExperimentMode } from '../lib/api'
@@ -106,22 +106,6 @@ function ExperimentToggle() {
   )
 }
 
-// 관리자 로그인 자리. 기능은 아직 없음
-function LoginButton() {
-  return (
-    <button
-      type="button"
-      disabled
-      title="준비중"
-      className="flex w-full cursor-not-allowed items-center gap-3 rounded-lg border border-sprout-600 px-3 py-2 text-sm font-medium text-sprout-200/80"
-    >
-      <LogIn className="size-4 shrink-0" aria-hidden />
-      <span className="flex-1 text-left">관리자 로그인</span>
-      <span className="text-[10px] text-sprout-300/70">준비중</span>
-    </button>
-  )
-}
-
 // 좁은 화면 위쪽 막대: 로고 오른쪽에 설명
 function BrandInline() {
   return (
@@ -154,7 +138,6 @@ export default function AppShell({ children }: { children?: ReactNode }) {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <ExperimentToggle />
-            <LoginButton />
           </div>
           <ServerStatus />
         </div>
@@ -169,7 +152,7 @@ export default function AppShell({ children }: { children?: ReactNode }) {
       {open && (
         <div className="border-t border-sprout-700 bg-sprout-800 px-4 pt-3 pb-4 md:hidden">
           <NavItems onNavigate={() => setOpen(false)} />
-          <div className="mt-3 flex flex-col gap-2"><ExperimentToggle /><LoginButton /></div>
+          <div className="mt-3 flex flex-col gap-2"><ExperimentToggle /></div>
         </div>
       )}
 
