@@ -1,4 +1,4 @@
-// 위성 VV 값 그래프: 날짜별 VV 중앙값 + 담수·불확실·낙수 구간 음영. 점을 누르면 그 날짜를 선택
+// 위성 VV 값 그래프: 날짜별 VV 중앙값 + 담수·습윤·낙수 구간 음영. 점을 누르면 그 날짜를 선택
 import {
   CartesianGrid, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
@@ -13,6 +13,7 @@ const COLOR = {
   uncertain: '#8c857f', // soil-500
   drained: '#b49034', // mustard-500
 } as const
+const STATUS_KO = { flooded: '담수', uncertain: '습윤', drained: '낙수' } as const
 
 interface Point {
   t: number
@@ -36,7 +37,7 @@ export default function SatelliteVvChart({ observations, selectedId, onSelect, h
 }) {
   const points: Point[] = observations
     .filter((o) => o.VV_median != null)
-    .map((o) => ({ t: Date.parse(o.timestamp), v: Number(o.VV_median!.toFixed(2)), date: o.date, status: o.status, statusKo: o.status_ko, sceneId: o.scene_id }))
+    .map((o) => ({ t: Date.parse(o.timestamp), v: Number(o.VV_median!.toFixed(2)), date: o.date, status: o.status, statusKo: STATUS_KO[o.status], sceneId: o.scene_id }))
     .sort((a, b) => a.t - b.t)
   if (points.length === 0) return null
 
@@ -53,7 +54,7 @@ export default function SatelliteVvChart({ observations, selectedId, onSelect, h
           <ReferenceArea y1={min} y2={FLOODED_VV_MAX} fill="#eaf5f5" fillOpacity={0.9} ifOverflow="hidden"
             label={{ value: '담수 구간', position: 'insideBottomLeft', fill: COLOR.flooded, fontSize: 11, fontWeight: 600 }} />
           <ReferenceArea y1={FLOODED_VV_MAX} y2={DRAINED_VV_MIN} fill="#f1f1ec" fillOpacity={0.9} ifOverflow="hidden"
-            label={{ value: '불확실', position: 'insideLeft', fill: COLOR.uncertain, fontSize: 11, fontWeight: 600 }} />
+            label={{ value: '습윤', position: 'insideLeft', fill: COLOR.uncertain, fontSize: 11, fontWeight: 600 }} />
           <ReferenceArea y1={DRAINED_VV_MIN} y2={max} fill="#f3efe3" fillOpacity={0.9} ifOverflow="hidden"
             label={{ value: '낙수 구간', position: 'insideTopLeft', fill: COLOR.drained, fontSize: 11, fontWeight: 600 }} />
           <ReferenceLine y={FLOODED_VV_MAX} stroke={COLOR.flooded} strokeDasharray="5 4"

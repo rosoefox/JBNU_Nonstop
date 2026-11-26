@@ -7,7 +7,7 @@ import ee
 import pandas as pd
 
 VERSION = "sentinel1_vv_rule_v2_relaxed_unvalidated"
-LABELS = {"flooded": "담수", "uncertain": "판정 불확실", "drained": "낙수"}
+LABELS = {"flooded": "담수", "uncertain": "습윤", "drained": "낙수"}
 COLUMNS = ["date", "timestamp", "scene_id", "VV_median", "VH_median",
            "valid_pixel_count", "orbit_direction", "relative_orbit"]
 

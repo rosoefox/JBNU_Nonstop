@@ -2,7 +2,6 @@
 import {
   CartesianGrid, Legend, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
-import { useState } from 'react'
 import { DRY_LEVEL_CM, TARGET_LEVEL_CM } from '../lib/domain'
 import type { Period } from '../lib/types'
 
@@ -35,12 +34,7 @@ function withGaps(points: { t: number; v: number }[]): { t: number; v: number | 
   return out
 }
 
-// 확대 배율: 1이면 전체, 2면 절반 구간만 보여주고 슬라이더로 옮겨 봄
-const ZOOMS = [1, 2, 4, 8]
-
 export default function LevelChart({ series, period, height = 300 }: { series: LevelSeries[]; period: Period; height?: number }) {
-  const [zoom, setZoom] = useState(1)
-  const [pos, setPos] = useState(1) // 0 = 맨 앞, 1 = 맨 끝(최신). 맨 끝이면 새 데이터가 와도 따라감
   const hasData = series.some((s) => s.points.length > 0)
   if (!hasData) {
     return <div className="flex items-center justify-center text-sm text-soil-500" style={{ height }}>이 기간에 측정 기록이 없어요</div>
@@ -49,24 +43,9 @@ export default function LevelChart({ series, period, height = 300 }: { series: L
   const min = Math.min(DRY_LEVEL_CM - 5, Math.floor(Math.min(...values) - 2))
   const max = Math.max(TARGET_LEVEL_CM + 5, Math.ceil(Math.max(...values) + 2))
   const times = series.flatMap((s) => s.points.map((p) => p.t))
-  const t0 = Math.min(...times), t1 = Math.max(...times)
-  const spanMs = t1 - t0
-  // 지금 보이는 구간
-  const viewMs = spanMs / zoom
-  const from = t0 + (spanMs - viewMs) * pos
-  const to = from + viewMs
-  const visible = (pts: { t: number; v: number }[]) => {
-    if (zoom === 1) return pts
-    // 화면 양끝 바로 바깥 점 하나씩은 남겨서 선이 가장자리까지 이어지게
-    const i0 = Math.max(0, pts.findIndex((p) => p.t >= from) - 1)
-    let i1 = pts.findIndex((p) => p.t > to)
-    i1 = i1 === -1 ? pts.length : i1 + 1
-    return pts.slice(i0, i1)
-  }
-  const fmtRange = (t: number) => new Date(t).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
+  const spanMs = Math.max(...times) - Math.min(...times)
 
   return (
-    <div>
     <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart margin={{ top: 8, right: 16, bottom: 0, left: -12 }}>
@@ -76,8 +55,7 @@ export default function LevelChart({ series, period, height = 300 }: { series: L
             label={{ value: `재관개 ${DRY_LEVEL_CM}cm`, position: 'insideBottomRight', fill: '#ca3232', fontSize: 11 }} />
           <ReferenceLine y={TARGET_LEVEL_CM} stroke="#11615b" strokeDasharray="5 4"
             label={{ value: `목표 +${TARGET_LEVEL_CM}cm`, position: 'insideTopRight', fill: '#11615b', fontSize: 11 }} />
-          <XAxis dataKey="t" type="number" scale="time" domain={zoom === 1 ? ['dataMin', 'dataMax'] : [from, to]} allowDataOverflow
-            tickFormatter={formatTick(period, zoom === 1 ? spanMs : Math.min(spanMs, viewMs))}
+          <XAxis dataKey="t" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={formatTick(period, spanMs)}
             tick={{ fontSize: 11, fill: '#8c857f' }} axisLine={{ stroke: '#d5d2cb' }} tickLine={false} minTickGap={40} />
           <YAxis domain={[min, max]} tick={{ fontSize: 11, fill: '#8c857f' }} axisLine={false} tickLine={false}
             tickFormatter={(v: number) => `${v}`} unit="cm" width={56} />
@@ -88,29 +66,11 @@ export default function LevelChart({ series, period, height = 300 }: { series: L
           />
           {series.length > 1 && <Legend wrapperStyle={{ fontSize: 12 }} />}
           {series.map((s) => (
-            <Line key={s.id} data={withGaps(visible(s.points))} dataKey="v" connectNulls={false} name={s.name} stroke={s.color} strokeWidth={2} dot={false}
+            <Line key={s.id} data={withGaps(s.points)} dataKey="v" connectNulls={false} name={s.name} stroke={s.color} strokeWidth={2} dot={false}
               isAnimationActive={false} type="monotone" />
           ))}
         </LineChart>
       </ResponsiveContainer>
-    </div>
-    {/* 확대 + 좌우로 옮겨 보기 */}
-    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-soil-500">
-      <span>확대</span>
-      {ZOOMS.map((z) => (
-        <button key={z} type="button" onClick={() => setZoom(z)}
-          className={`rounded px-2 py-0.5 ${zoom === z ? 'bg-soil-700 text-white' : 'bg-soil-100 hover:bg-soil-200'}`}>
-          {z === 1 ? '전체' : `×${z}`}
-        </button>
-      ))}
-      {zoom > 1 && (
-        <>
-          <input type="range" min={0} max={1000} value={Math.round(pos * 1000)} onChange={(e) => setPos(Number(e.target.value) / 1000)}
-            className="min-w-[120px] flex-1 accent-[#11615b]" aria-label="그래프 구간 옮기기" />
-          <span className="whitespace-nowrap">{fmtRange(from)} ~ {fmtRange(to)}</span>
-        </>
-      )}
-    </div>
     </div>
   )
 }

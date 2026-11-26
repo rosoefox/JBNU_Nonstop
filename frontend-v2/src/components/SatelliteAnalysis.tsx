@@ -14,7 +14,7 @@ type Point = [number, number] // Leaflet: latitude, longitude
 // 서버가 받는 꼭짓점 수 한도(200)보다 여유 있게 줄임
 const MAX_VERTICES = 150
 
-// 판정 배지 색 (담수 = 물빛, 낙수 = 흙빛, 불확실 = 회색)
+// 판정 배지 색 (담수 = 물빛, 낙수 = 흙빛, 습윤 = 회색)
 const STATUS_STYLE: Record<SatelliteObservation['status'], string> = {
   flooded: 'bg-rain-100 text-rain-600',
   drained: 'bg-mustard-100 text-mustard-600',
@@ -25,7 +25,7 @@ const DOT_STYLE: Record<SatelliteObservation['status'], string> = {
   uncertain: 'bg-soil-500',
   drained: 'bg-mustard-500',
 }
-const LABEL: Record<SatelliteObservation['status'], string> = { flooded: '담수', uncertain: '불확실', drained: '낙수' }
+const LABEL: Record<SatelliteObservation['status'], string> = { flooded: '담수', uncertain: '습윤', drained: '낙수' }
 
 // 판정 기준 안내 (값은 SatelliteVvChart, 서버 config.json과 같게 유지)
 const dB = (v: number) => `${v < 0 ? '−' : ''}${Math.abs(v)}`
@@ -257,14 +257,14 @@ export default function SatelliteAnalysis() {
                 </span>
                 <select value={sceneId} onChange={(event) => { setError(''); setSceneId(event.target.value) }} className={clsx(input, 'h-10')}>
                   {observations.map((item) => <option key={item.scene_id} value={item.scene_id}>
-                    {item.date} · {item.status_ko} · VV {item.VV_median?.toFixed(1) ?? '-'} dB
+                    {item.date} · {LABEL[item.status]} · VV {item.VV_median?.toFixed(1) ?? '-'} dB
                   </option>)}
                 </select>
               </label>
               {selected && <div className="mt-4 rounded-lg border border-soil-200 bg-soil-50 p-4">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-semibold text-forest-800">{selected.date}</p>
-                  <span className={clsx('rounded-full px-2.5 py-0.5 text-xs font-bold', STATUS_STYLE[selected.status])}>{selected.status_ko}</span>
+                  <span className={clsx('rounded-full px-2.5 py-0.5 text-xs font-bold', STATUS_STYLE[selected.status])}>{LABEL[selected.status]}</span>
                 </div>
                 <dl className="mt-3 grid grid-cols-2 gap-3">
                   <div>
