@@ -20,6 +20,7 @@ import binascii
 import json
 import os
 import re
+from collections import deque
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request
@@ -121,9 +122,34 @@ def _water_level_cm(raw: bytes) -> float | None:
     return round(mm / 10, 1)
 
 
+# 최근 받은 업링크 (저장 여부·이유 포함). 서버 메모리에만 보관, 재시작하면 비워짐. /lorawan/recent 로 확인
+_recent: deque = deque(maxlen=50)
+
+
+@router.get("/recent")
+def recent_uplinks():
+    """서버가 최근 받은 업링크 50개: 언제, 어떤 기기, 데이터 값, 저장됐는지, 안 됐으면 이유."""
+    return {"count": len(_recent), "now": datetime.now(timezone.utc).isoformat(), "items": list(reversed(_recent))}
+
+
 @router.post("/uplink")
 async def receive_uplink(request: Request, token: str | None = None):
     """게이트웨이 HTTP 연동의 업링크 주소. 등록된 센서(DevEUI)의 수위를 저장."""
+    entry = {"received_at": datetime.now(timezone.utc).isoformat()}
+    _recent.append(entry)
+    try:
+        result = await _handle_uplink(request, token)
+        entry.update({k: result.get(k) for k in ("stored", "reason", "dev_eui", "payload_hex", "inner_water_level")})
+        return result
+    except HTTPException as e:
+        entry.update({"stored": False, "reason": f"오류 {e.status_code}: {e.detail}"})
+        raise
+    except Exception as e:  # DB 오류 등도 기록
+        entry.update({"stored": False, "reason": f"서버 오류: {type(e).__name__}"})
+        raise
+
+
+async def _handle_uplink(request: Request, token: str | None) -> dict:
     expected = os.environ.get("LORAWAN_WEBHOOK_TOKEN", "").strip()
     if expected and token != expected:
         raise HTTPException(status_code=401, detail="token이 맞지 않습니다")
@@ -162,7 +188,8 @@ async def receive_uplink(request: Request, token: str | None = None):
         ).scalar()
         if node_id is None:
             # 게이트웨이가 같은 데이터를 계속 다시 보내지 않게 200으로 응답하고 이유만 알림
-            return {"stored": False, "reason": "등록되지 않은 센서 (웹 관리 페이지에서 DevEUI 등록 필요)", "dev_eui": dev_eui}
+            return {"stored": False, "reason": "등록되지 않은 센서 (웹 관리 페이지에서 DevEUI 등록 필요)", "dev_eui": dev_eui,
+                    "payload_hex": raw.hex()}
         log_id = conn.execute(
             text("insert into sensor_logs (node_id, inner_water_level, pump_on, measured_at, raw, is_experiment) "
                  "values (:node_id, :level, :pump_on, :measured_at, cast(:raw as jsonb), :exp) returning id"),
@@ -174,4 +201,5 @@ async def receive_uplink(request: Request, token: str | None = None):
                                 "body": body}, ensure_ascii=False)},
         ).scalar()
     return {"stored": True, "id": log_id, "node_id": node_id, "inner_water_level": level, "pump_on": pump_on,
-            "measured_at": measured_at.isoformat(), "valid_reading": level is not None}
+            "measured_at": measured_at.isoformat(), "valid_reading": level is not None,
+            "dev_eui": dev_eui, "payload_hex": raw.hex()}
