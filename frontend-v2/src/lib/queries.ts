@@ -7,8 +7,7 @@ import { summarizeFields } from './fieldSummary'
 import type { Period, SensorLog } from './types'
 
 const REFRESH_MS = 60_000 // 1분마다 최신값
-const LIVE_MS = 5_000 // 실험 모드: 수위·그래프는 5초마다 (시연 때 바로 보이게)
-const LIVE_ALERT_MS = 10_000 // 실험 모드: 알림은 10초마다 (알림 조회는 서버 판정까지 해서 조금 무거움)
+const LIVE_MS = 5_000 // 실험 모드: 수위·그래프·알림·지표 모두 5초마다 (시연 때 바로 보이게)
 
 // 실험 모드면 짧게, 운영 모드면 1분
 export function useLiveRefresh(liveMs = LIVE_MS): number {
@@ -43,7 +42,7 @@ export const useLatestLogs = () => {
 
 export const useAlerts = (fieldId?: number | null) => {
   const scope = useDataScope()
-  const refresh = useLiveRefresh(LIVE_ALERT_MS)
+  const refresh = useLiveRefresh()
   return useQuery({ queryKey: ['alerts', fieldId ?? 'all', scope], queryFn: () => getAlerts(fieldId, scope), refetchInterval: refresh })
 }
 
@@ -73,12 +72,17 @@ export const useNodeLogs = (nodeId: number | undefined, period: Period) => {
 
 export const useNodeStats = (nodeId: number | undefined) => {
   const scope = useDataScope()
-  return useQuery({ queryKey: ['stats', nodeId, scope], queryFn: () => getNodeStats(nodeId!, scope), enabled: nodeId !== undefined })
+  const { data } = useExperimentMode()
+  // 실험 모드에서만 5초마다 (운영 모드는 화면을 다시 볼 때 갱신)
+  return useQuery({ queryKey: ['stats', nodeId, scope], queryFn: () => getNodeStats(nodeId!, scope), enabled: nodeId !== undefined,
+    refetchInterval: data?.experiment_mode ? LIVE_MS : false })
 }
 
 export const useNodeAwd = (nodeId: number | undefined, period: Period) => {
   const scope = useDataScope()
-  return useQuery({ queryKey: ['awd', nodeId, period, scope], queryFn: () => getNodeAwd(nodeId!, period, scope), enabled: nodeId !== undefined })
+  const { data } = useExperimentMode()
+  return useQuery({ queryKey: ['awd', nodeId, period, scope], queryFn: () => getNodeAwd(nodeId!, period, scope), enabled: nodeId !== undefined,
+    refetchInterval: data?.experiment_mode ? LIVE_MS : false })
 }
 
 // 노드별 최신값을 노드 번호로 바로 찾을 수 있게
